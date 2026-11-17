@@ -1,0 +1,5 @@
+# 게임 실행 파일만 공개 저장소에 올린다
+/*
+!/index.html
+!/.nojekyll
+!/.gitignore

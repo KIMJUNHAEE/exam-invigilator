@@ -1,0 +1,1789 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#142322">
+  <title>시험 종료 3분 전</title>
+  <style>:root {
+  color-scheme: dark;
+  font-family: "Pretendard", "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  color: #f5efe2;
+  background: #172522;
+  --cream: #f5efe2;
+  --muted: #b7c4b8;
+  --accent: #ebd09a;
+  --panel: #192b28;
+  --line: #45554b;
+  --dark: #29271f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+button, select { font: inherit; }
+button, select, summary { touch-action: manipulation; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .55; }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+button, select, .card, .results-sheet { border: 1px solid var(--line); }
+button, select { border-radius: 5px; color: var(--cream); background: #273b34; }
+button { padding: 10px 15px; font-weight: 650; }
+button:hover:not(:disabled) { background: #344b41; }
+button.primary { color: var(--dark); background: var(--accent); border-color: var(--accent); }
+button.primary:hover:not(:disabled) { background: #f5dfa9; }
+button.primary span { margin-left: 16px; }
+h1, h2, h3, h4, p { margin: 0; }
+#game, #room { width: 100%; min-height: 100dvh; }
+#room { display: block; position: fixed; inset: 0; height: 100dvh; }
+#room:focus { outline: none; }
+.intro {
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  overflow: hidden;
+  display: grid;
+  align-items: center;
+  background: linear-gradient(90deg, #13211efc 2%, #142622ef 33%, #192b2790 55%, #192a270c 89%),
+              linear-gradient(0deg, #101e19ab, transparent 45%);
+}
+.intro-content { padding: 8vh clamp(24px, 7.2vw, 150px); max-width: max(830px, 48vw); box-sizing: border-box; }
+.intro-label {
+  display: flex; gap: 12px; align-items: center;
+  color: #e3d6b6; font-weight: 700; font-size: .88rem; letter-spacing: .095em;
+}
+.intro-label span { width: 18px; height: 1px; background: var(--accent); }
+h1 {
+  margin: 22px 0 26px;
+  font-family: "Noto Serif KR", "Batang", "AppleMyungjo", Georgia, serif;
+  font-size: clamp(2.6rem, min(7.9vw, 14vh), 8.4rem);
+  white-space: nowrap;
+  font-weight: 750;
+  line-height: .97;
+  letter-spacing: -.085em;
+  text-shadow: 0 6px 22px #0e1d195c;
+}
+h1 em { color: var(--accent); font-style: normal; }
+.intro-guide { max-width: 510px; margin-bottom: 21px; }
+.intro-guide h2 { margin-bottom: 9px; color: var(--accent); font-size: 1.08rem; }
+.guide-rules ul { margin: 0; padding-left: 1.18rem; color: #d4dbd0; font-size: .90rem; line-height: 1.6; word-break: keep-all; }
+.guide-rules li + li { margin-top: 5px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 15px; margin: 15px 0 0; }
+.controls span, .hud-bottom span { display: inline-flex; gap: 6px; align-items: center; color: #d8ddd4; font-size: .83rem; }
+.controls span:first-child { gap: 3px; }
+kbd {
+  display: inline-block; min-width: 22px; padding: 2px 5px;
+  border: 1px solid #9faf9e68; border-radius: 4px;
+  background: #1c2924ce; color: #f3eee0; text-align: center;
+  font: 600 .74rem "Cascadia Mono", Consolas, monospace;
+}
+.start { font-size: 1.04rem; padding: 12px 22px; }
+#load-error { margin-top: 12px; color: #ffbc9f; }
+.hud { position: fixed; inset: 0; pointer-events: none; }
+.hud-top { display: flex; justify-content: space-between; margin: 22px clamp(12px, 3.2vw, 42px); }
+.health-chip, .count-chip, .hud-bottom, .accuse-hint, .toast {
+  background: #142622ef; border: 1px solid #b7cab044; border-radius: 7px;
+  box-shadow: 0 5px 24px #17232226;
+}
+.health-chip, .count-chip { padding: 10px 15px; color: var(--cream); }
+.health-slots { display: flex; gap: 4px; margin-top: 6px; }
+.health-slots span { width: 29px; height: 26px; color: #fa5d65; font: 34px/.75 Arial, sans-serif; text-align: center; text-shadow: 0 2px 2px #190e11; }
+.health-slots .spent { color: #54373a; }
+.small-label { display: block; color: var(--muted); font-size: .74rem; font-weight: 700; }
+.count-chip { text-align: right; }
+.count-chip strong { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.reticle {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  width: 10px; height: 10px; border: 1px solid #fff5db; border-radius: 50%;
+  box-shadow: 0 0 2px #13221c, inset 0 0 2px #13221c;
+}
+.reticle.ready { border: 2px solid #f3d28e; }
+.accuse-hint { position: absolute; top: calc(50% + 23px); left: 50%; transform: translateX(-50%); padding: 5px 10px; color: #ffe2aa; font-size: .82rem; }
+.accuse-hint kbd { margin-right: 4px; }
+.toast { position: absolute; left: 50%; transform: translateX(-50%); padding: 8px 12px; text-align: center; }
+.toast { bottom: 76px; max-width: 90%; color: #ffe2aa; font-size: .86rem; }
+.zoom-frame {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 35%, #11191680 67%, #0e1512e0 100%);
+  z-index: -1;
+}
+.hud-bottom {
+  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+  padding: 8px 12px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 15px;
+  max-width: calc(100% - 24px); width: max-content;
+}
+.hud-bottom .active, .hud-bottom .active kbd { color: var(--accent); border-color: #eacb9080; }
+.overlay, .results-screen {
+  position: fixed; inset: 0; padding: clamp(14px, 3vw, 38px);
+  overflow-y: auto; overscroll-behavior: contain;
+  background: #13251ec7;
+}
+.overlay { display: grid; place-items: center; }
+.card, .results-sheet {
+  background: var(--panel);
+  border-radius: 10px; box-shadow: 0 20px 72px #0b161364;
+}
+.card { width: min(100%, 540px); padding: clamp(20px,4vw,35px); }
+.card h2, .results-header h2 { color: var(--cream); letter-spacing: -.05em; line-height: 1.22; }
+.card h2 { margin: 5px 0 12px; font-size: 1.65rem; }
+.guide-card { width: min(100%, 830px); }
+.guide-layout { display: grid; grid-template-columns: 1fr 1.1fr; gap: 26px; }
+.guide-layout h3 { margin: 6px 0 10px; font-size: 1rem; color: var(--accent); }
+.setting-row { display: grid; grid-template-columns: minmax(82px,1fr) minmax(70px,1.25fr) 3.1em; gap: 7px; align-items: center; min-height: 30px; font-size: .82rem; }
+.setting-row input { width: 100%; margin: 0; accent-color: var(--accent); }
+.setting-row output { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.actions { margin-top: 22px; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.seat-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; }
+.seat-grid button { min-height: 34px; padding: 5px 4px; font-variant-numeric: tabular-nums; }
+.seat-grid button[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+.results-screen { display: grid; align-items: start; justify-items: center; }
+.results-sheet { width: min(100%, 940px); padding: clamp(17px,3.5vw,37px); margin-block: auto; }
+.results-header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 14px; align-items: center; }
+.results-header h2 { font-size: clamp(1.62rem,4.2vw,2.75rem); margin-top: 5px; }
+.stats { display: grid; grid-template-columns: 1.35fr 1fr 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); margin: 22px 0; border-radius: 7px; overflow: hidden; }
+.stats div { background: #22362e; padding: 12px 14px; }
+.stats strong { display: block; font: 700 clamp(1rem,2.4vw,1.48rem) "Cascadia Mono", Consolas, monospace; margin-top: 4px; }
+.stats div:first-child strong { color: var(--accent); }
+.suspect-list { margin: -8px 0 18px; color: #f0e1bc; font-size: .88rem; }
+.results-content { display: grid; grid-template-columns: .9fr 1.12fr; gap: 20px; }
+.map-header { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; margin-bottom: 8px; }
+.map-header h3 { font-size: 1rem; }
+.map-header span { color: var(--muted); font-size: .74rem; }
+button.caught { background: #345b49; color: #e0f3dc; border-color: #638472; }
+button.missed { background: #684e31; color: #f7e5c6; border-color: #9a774d; }
+button.wrong { background: #643e36; color: #f9e3d8; border-color: #a56f5d; }
+button.clean { background: #293c34; color: #c6d4cc; }
+.legend { display: flex; gap: 9px 12px; flex-wrap: wrap; margin-top: 11px; font-size: .73rem; color: #c3cdc1; }
+.legend span::before { content: ""; display: inline-block; height: 7px; width: 7px; border-radius: 2px; margin-right: 5px; background: #6c8074; }
+.legend .caught::before { background: #7ea086; }
+.legend .missed::before { background: #cb9d63; }
+.legend .wrong::before { background: #c38370; }
+.result-detail { border: 1px solid var(--line); background: #20332c; border-radius: 7px; padding: 14px 16px; }
+.result-detail h3 { margin-bottom: 8px; font-size: 1.14rem; }
+.result-detail dl { display: grid; grid-template-columns: max-content 1fr; margin: 0; gap: 8px 12px; font-size: .86rem; line-height: 1.45; }
+.result-detail dt { color: var(--muted); }
+.result-detail dd { margin: 0; }
+@media (max-width: 640px) {
+  .intro { background: linear-gradient(90deg,#13211efc,#192b279e 92%); }
+  .intro-content { padding-inline: 7vw; }
+  .results-content, .guide-layout { grid-template-columns: 1fr; gap: 12px; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .hud-top { margin-top: 12px; }
+  .hud-bottom span { font-size: .73rem; }
+}
+</style>
+</head>
+<body>
+  <main id="game" aria-label="시험 종료 3분 전">
+    <canvas id="room" aria-label="3D 시험장"></canvas>
+    <section id="intro" class="intro">
+      <div class="intro-content">
+        <div class="intro-label"><span></span> 시험감독 체험</div>
+        <h1>시험 종료<br><em>3분 전</em></h1>
+        <section class="intro-guide" aria-labelledby="intro-guide-title">
+          <h2 id="intro-guide-title">게임 방법</h2>
+          <div id="intro-rules" class="guide-rules">
+            <ul>
+              <li>3분 안에 학생의 행동을 관찰하고 부정행위자를 찾아내세요.</li>
+              <li>의심하는 자리의 책상이나 학생을 조준해 <kbd>F</kbd>로 적발하세요. 일반 학생을 지목하면 하트를 하나 잃습니다.</li>
+              <li>전원 적발, 체력 소진, 시간 종료 시 실제 부정행위자 좌석이 공개됩니다.</li>
+            </ul>
+            <div class="controls">
+              <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 이동</span>
+              <span><kbd>마우스</kbd> 시점</span>
+              <span><kbd>우클릭</kbd> 확대경</span>
+              <span><kbd>T</kbd> 게임 방법·설정</span>
+              <span><kbd>Esc</kbd> 일시정지</span>
+            </div>
+          </div>
+        </section>
+        <button class="primary start" id="start" disabled>시험 시작 <span aria-hidden="true">→</span></button>
+        <p id="load-error" role="alert" hidden></p>
+      </div>
+    </section>
+
+    <div id="hud" class="hud" hidden>
+      <div class="hud-top">
+        <div class="health-chip">
+          <span class="small-label">체력</span>
+          <div id="health" class="health-slots" role="img" aria-label="체력 3 / 3"></div>
+        </div>
+        <div class="count-chip">
+          <span class="small-label">적발</span>
+          <strong id="caught-count">0 / 4</strong>
+        </div>
+      </div>
+      <div id="reticle" class="reticle" aria-hidden="true"></div>
+      <div id="accuse-hint" class="accuse-hint" hidden><kbd>F</kbd> 적발</div>
+      <div id="zoom-frame" class="zoom-frame" hidden></div>
+      <div id="toast" class="toast" role="status" hidden></div>
+      <div class="hud-bottom">
+        <span id="zoom-key"><kbd>우클릭</kbd> 확대경</span>
+        <span><kbd>T</kbd> 게임 방법·설정</span>
+        <span><kbd>Esc</kbd> 일시정지</span>
+      </div>
+    </div>
+
+    <section id="overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="dialog-title" hidden>
+      <div class="card">
+        <h2 id="dialog-title">일시정지</h2>
+        <div class="actions"><button class="primary" id="continue">계속하기 →</button></div>
+      </div>
+    </section>
+
+    <section id="help" class="overlay" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden>
+      <div class="card guide-card">
+        <h2 id="help-title">게임 방법 및 설정</h2>
+        <div class="guide-layout">
+          <section aria-labelledby="help-controls-title">
+            <h3 id="help-controls-title">조작과 규칙</h3>
+            <div id="help-rules" class="guide-rules"></div>
+          </section>
+          <section aria-labelledby="settings-title">
+            <h3 id="settings-title">설정</h3>
+            <div id="settings" class="settings"></div>
+          </section>
+        </div>
+        <div class="actions"><button class="primary" id="help-close">게임으로 돌아가기</button></div>
+      </div>
+    </section>
+
+    <section id="results" class="results-screen" aria-labelledby="results-title" hidden>
+      <div class="results-sheet">
+        <header class="results-header">
+          <div>
+            <div class="small-label">감독 결과</div>
+            <h2 id="results-title" tabindex="-1">시험이 끝났습니다</h2>
+          </div>
+          <button class="primary" id="retry">다시 시작 <span aria-hidden="true">→</span></button>
+        </header>
+        <div class="stats" id="stats"></div>
+        <p id="suspect-list" class="suspect-list"></p>
+        <div class="results-content">
+          <div>
+            <div class="map-header"><h3>학생 좌석</h3><span>교탁 방향 ↑</span></div>
+            <div class="seat-grid" id="result-grid"></div>
+            <div class="legend">
+              <span class="caught">적발</span><span class="missed">미적발</span><span class="wrong">오인 적발</span><span class="clean">일반</span>
+            </div>
+          </div>
+          <article id="result-detail" class="result-detail"></article>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+'use strict';
+const wasm64 = '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KAIoIABHDQAgAUEoaiEBDAELIAEoAjwgAEcNASABQTxqIQELIAEoAgQNAQtBACACQX9qNgKAgoSAAEF/DwtBASEBQQAgA0EBajYCtIKEgAALIAELNgACQEEAKAKAgoSAAA0AQQIPCwJAQQAoArSChIAAQQRHDQBBAw8LQQAqAriChIAAQwAANENgCwsAQQAoAoCChIAACwQAQQMLCwBBACgCtIKEgAALBABBBAueAQEBf0EAIQECQCAAQRNLDQACQAJAAkBBACgCkIKEgABB0ABsQZCAhIAAaiIBKAIAIABGDQACQCABKAIUIABHDQAgAUEUaiEBDAELAkAgASgCKCAARw0AIAFBKGohAQwBCyABKAI8IABHDQEgAUE8aiEBCyABKAIEDQELQQNBACAALQCggoSAABsPC0EBQQIgAC0AoIKEgAAbIQELIAELiwEBAn9BACEBAkACQCAAQRNLDQACQEEAKAKQgoSAAEHQAGxBkICEgABqIgIoAgAgAEYNAAJAIAIoAhQgAEcNACACQRRqIQIMAQsCQCACKAIoIABHDQAgAkEoaiECDAELIAIoAjwgAEcNAiACQTxqIQILIAIoAgRFDQAgAC0AoIKEgAAhAQsgAQ8LQQALcgECfwJAAkBBACgCkIKEgABB0ABsQZCAhIAAaiIBKAIAIABGDQACQCABKAIUIABHDQAgAUEUaiEBDAELAkAgASgCKCAARw0AIAFBKGohAQwBC0EAIQIgASgCPCAARw0BIAFBPGohAQsgASgCBCECCyACC+cBAgF/An0CQAJAQQAoApCChIAAQdAAbEGQgISAAGoiASgCACAARg0AAkAgASgCFCAARw0AIAFBFGohAQwBCwJAIAEoAiggAEcNACABQShqIQEMAQtDAACAvyECIAEoAjwgAEcNASABQTxqIQELAkBBACoCuIKEgAAiAyABKAIIIgGykyICQwAAAABgRQ0AIAJDAAAAQV0NAQsCQCADIAFBOGqykyICQwAAAABgRQ0AIAJDAAAAQV0NAQsgAyABQe0AarKTIgJDAACAvyACQwAAAEFdG0MAAIC/IAJDAAAAAGAbIQILIAILXgECfUMAAIC/IQECQCAAQRNLDQBBACoCuIKEgAAgAEENbEH/AXFBGHBBBWqzkyICQwAAAABdDQAgAiACQwAAAD2U/ABBBXSykyIBQwAAgL8gAUNmZoZAXRshAQsgAQs+AQF/QQAhAQJAIABBE0sNACAAQQAqAriChIAAIABBDWxB/wFxQRhwQQVqs5NDAAAAPZT8AGpBAXEhAQsgAQtyAQJ/AkACQEEAKAKQgoSAAEHQAGxBkICEgABqIgEoAgAgAEYNAAJAIAEoAhQgAEcNACABQRRqIQEMAQsCQCABKAIoIABHDQAgAUEoaiEBDAELQX8hAiABKAI8IABHDQEgAUE8aiEBCyABKAIMIQILIAILcgECfwJAAkBBACgCkIKEgABB0ABsQZCAhIAAaiIBKAIAIABGDQACQCABKAIUIABHDQAgAUEUaiEBDAELAkAgASgCKCAARw0AIAFBKGohAQwBC0EAIQIgASgCPCAARw0BIAFBPGohAQsgAS0AECECCyACC4wBAQF/AkBBACgCkIKEgABB0ABsQZCAhIAAaiICKAIAIABGDQACQCACKAIUIABHDQAgAkEUaiECDAELAkAgAigCKCAARw0AIAJBKGohAgwBCyACQTxqQQAgAigCPCAARhshAgtBfyEAAkAgAUECSw0AIAJFDQAgAUECdCgCgICEgAAgAigCCGohAAsgAAsHAEMAADRDCxEAQwAANENBACoCuIKEgACTCwsAQQAqAryChIAACwcAQwrXwz8LCwBBACoChIKEgAALFAAgAEEEb7JDAADAv5JDmpkJQJQLFAAgAEEEbbJDUrjev5RDmpkpQJILBABBFAsEAEEDCwucAgIAQYCABAuAAgAAAAA4AAAAbQAAAAAAAAACAAAAAQAAAAoAAAD/////AAAAAAcAAAACAAAAFwAAAP////8AAAAADQAAAAMAAAAlAAAAEQAAAAEAAAARAAAAAwAAACUAAAANAAAAAAAAAAAAAAACAAAADwAAAP////8AAAAABgAAAAMAAAAdAAAACgAAAAAAAAAMAAAAAQAAACkAAAD/////AAAAAAoAAAADAAAAHQAAAAYAAAABAAAAAwAAAAMAAAAIAAAABwAAAAEAAAAFAAAAAQAAABUAAAD/////AAAAAAsAAAACAAAAJAAAAP////8AAAAABwAAAAMAAAAIAAAAAwAAAAAAAAAAQYCCBAsMAwAAAM3MlED/////';
+// Seat order is stable between rounds. The scenario assigns misconduct separately.
+const studentProfiles = [
+  // Hair color, shirt, trim, trousers, skin, eyewear.
+  [0x292626,0x344b75,0xf2cf99,0x36414c,0xe0ad89,0],
+  [0x392a26,0xc2a168,0xf0d6a9,0x514840,0xc59472,2],
+  [0x222321,0x496c61,0xb1c89e,0x3e4a43,0xdca57a,1],
+  [0x3b2722,0x9b504a,0xf1dbc1,0x424346,0xe6b692,0],
+  [0x302522,0x786298,0xd1bddb,0x443c52,0xb58265,3],
+  [0x2a292e,0xd6c7a2,0x3f5d7a,0x465160,0xd7a27a,2],
+  [0x38312b,0x586858,0xd3b173,0x3e453b,0xdbab85,0],
+  [0x29282d,0x3b637f,0x8eb5b5,0x41464c,0xe6b391,4],
+  [0x472d27,0xc96e49,0xffd0a0,0x574139,0xd6a077,0],
+  [0x2f2b2e,0x4e506d,0xd8b497,0x3d3b51,0xc89475,1],
+  [0x302621,0x638780,0xe6cf99,0x354744,0xe4ad85,0],
+  [0x332723,0xac575d,0xe1b786,0x493d49,0xbb866a,2],
+  [0x252627,0xd5b46e,0x75513e,0x3e4746,0xe5ad80,0],
+  [0x402921,0x4e5975,0xd5baa4,0x47434b,0xe3b698,1],
+  [0x26262d,0x65548f,0xadaeda,0x3f4053,0xd7a587,0],
+  [0x392824,0x66704f,0xe2cc9d,0x414641,0xc89573,4],
+  [0x201e20,0xa65d40,0xf1d18b,0x4c3d37,0xe1ac89,0],
+  [0x2b2827,0x4c7773,0xcad1a9,0x394747,0xba896a,0],
+  [0x382925,0x8f5d75,0xf0cea6,0x4a404c,0xdca987,3],
+  [0x282a29,0x586d86,0xd6c8aa,0x3c4450,0xe7b290,0],
+];
+
+// Tufts use head-local position, size, and optional roll.
+const libertySpikesSeat = 16;
+const hairTufts = [
+  [], // Buzz cut
+  [[-.038,.119,.006,.151,.068,.209,.12],[.067,.095,.054,.088,.067,.145,-.20]], // Side part
+  [[0,.109,.006,.231,.080,.229],[0,.061,.090,.209,.066,.078]], // Bowl cut
+  [[-.058,.097,.091,.096,.052,.078,.12],[.019,.088,.091,.089,.051,.090,-.10],[.074,.102,.076,.068,.044,.090,.10]], // French crop
+  [[-.060,.114,.066,.116,.087,.147,.10],[.008,.125,.024,.128,.084,.168,-.07],[.065,.099,.068,.113,.088,.130,-.18],[.048,.106,-.055,.115,.093,.128]], // Short waves
+  [[-.061,.098,.082,.117,.097,.133,-.27],[.061,.097,.079,.114,.090,.132,.27]], // Center part
+  [[-.032,.113,.049,.136,.074,.176,-.09],[.048,.106,.071,.100,.070,.124,.13]], // Brushed-forward crop
+  [[0,.111,-.019,.218,.076,.189],[0,.111,.063,.171,.077,.130,.04]], // Slicked back
+  [[-.032,.114,.057,.192,.086,.172,-.12],[.053,.075,.091,.122,.068,.082,.34]], // Side-swept fringe
+  [[-.018,.126,.036,.189,.084,.172,-.13],[.030,.133,.074,.132,.078,.108,-.22]], // Soft quiff
+  [[-.062,.079,.092,.088,.083,.094,.24],[.006,.082,.101,.083,.075,.086,.15],[.068,.091,.085,.079,.065,.086,-.15]], // Choppy fringe
+  [[-.070,.113,.059,.103,.086,.111],[-.015,.123,.064,.103,.095,.116],[.057,.109,.057,.119,.093,.107],[.058,.120,-.047,.119,.091,.119],[-.048,.125,-.055,.115,.091,.127]], // Cropped curls
+  [[0,.112,.015,.200,.070,.213],[.030,.115,.061,.153,.063,.150,.10]], // Low fade
+  [[-.019,.120,.011,.191,.083,.212,.10],[.018,.119,.064,.168,.089,.134,.12]], // Brushed-back side part
+  [[-.047,.109,.050,.140,.089,.168,-.13],[.071,.084,.070,.097,.080,.136,.21]], // Straight side part
+  [[0,.114,.007,.218,.079,.206],[0,-.002,-.104,.206,.151,.060],[-.046,.083,.083,.145,.067,.085,.13]], // Tapered nape
+  null, // Liberty spikes
+  [[0,.107,-.015,.212,.068,.207],[.032,.109,.041,.151,.065,.131,.10]], // Ivy League
+  [[-.060,.110,.061,.117,.104,.138,-.18],[.049,.114,.062,.128,.103,.134,.19],[-.045,.104,-.046,.124,.083,.140],[.051,.101,-.050,.119,.086,.129]], // Loosely parted waves
+  [[-.035,.115,.018,.198,.081,.194,.12],[-.050,.093,.083,.138,.087,.126,.25],[.059,.082,.083,.111,.065,.113,-.15]], // Layered fringe
+];
+const roundedHair = new Set([4,11,18]);
+const libertySpikes = [
+  // Roots follow the center of the scalp from the forehead to the nape.
+  [[.012,.077,.087],[.043,.253,.306],.090,.074],
+  [[-.010,.107,.051],[-.067,.423,.193],.110,.087],
+  [[.012,.112,-.018],[.070,.416,-.091],.099,.075],
+  [[-.006,.099,-.071],[-.045,.281,-.312],.108,.082],
+  [[.011,.064,-.091],[.054,.101,-.369],.096,.070],
+  [[-.008,.021,-.095],[-.047,-.050,-.317],.083,.058],
+];
+
+const eyewear = [
+  null,
+  {color:0x303032,width:.083,height:.051,corner:.011,wire:.008},
+  {color:0x786246,width:.077,height:.062,corner:.021,wire:.0055},
+  {color:0x405c63,width:.087,height:.049,corner:.018,wire:.008},
+  {color:0x514453,width:.090,height:.063,corner:.013,wire:.007},
+];
+
+const noteReleaseTime = 1.62;
+const noteCatchTime = noteReleaseTime+.24;
+
+const caughtSurpriseDuration = .85;
+
+function createStudentActors(core, desks, primitive) {
+  const sides = [-1,1];
+  const outfits = [
+    // Garment shape, chest treatment, short sleeves.
+    ['blazer','tie'], ['hoodie','pouch'], ['cardigan','buttons'], ['tee','stripes',true],
+    ['sweater','diamond'], ['baseball','raglan'], ['vest','pocket'], ['track','bars'],
+    ['tee','patch',true], ['coat','lapels'], ['rugby','stripes'], ['bomber','patch'],
+    ['shirt','buttons',true], ['blazer','tie'], ['hoodie','pouch'], ['workwear','pockets'],
+    ['tee','graphic',true], ['sweater','checks'], ['cardigan','buttons'], ['denim','pockets'],
+  ];
+  const clamp = (v, lo, hi) => Math.max(lo,Math.min(hi,v));
+  const mix = (a,b,t) => a+(b-a)*t;
+  const smooth = v => {
+    const t = clamp(v,0,1);
+    return t*t*(3-2*t);
+  };
+  const fade = (time,from,inEnd,outStart,to) => smooth((time-from)/(inEnd-from))*(1-smooth((time-outStart)/(to-outStart)));
+  const lerp = (a,b,t) => a.map((v,i) => mix(v,b[i],t));
+  const add = (a,b) => a.map((v,i) => v+b[i]);
+  const subtract = (a,b) => a.map((v,i) => v-b[i]);
+  const scale = (v,s) => v.map(n => n*s);
+  const dot = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const length = v => Math.hypot(...v);
+  const reactions = Array(desks.length).fill(null);
+  const wrapAngle = angle => Math.atan2(Math.sin(angle),Math.cos(angle));
+
+  function reactToWrongAccusation(seat) {
+    const [x,z] = desks[seat];
+    const yaw = Math.atan2(core.game_x()-x,core.game_z()-(z-.704));
+    reactions[seat] = {age:0,yaw,side:yaw<0 ? -1 : 1};
+  }
+
+  function resetReactions() {
+    reactions.fill(null);
+  }
+
+  function reactionAt(index, dt, camera) {
+    const reaction = reactions[index];
+    if (!reaction) return null;
+    const t = reaction.age += dt;
+    if (t>=2.10) {
+      reactions[index] = null;
+      return null;
+    }
+    const [x,z] = desks[index];
+    const dx = camera.x-x, dz = camera.z-(z-.704);
+    reaction.yaw += wrapAngle(Math.atan2(dx,dz)-reaction.yaw);
+    return {
+      yaw:reaction.yaw,
+      side:reaction.side,
+      turn:fade(t,0,.30,1.63,2.10),
+      raise:fade(t,.13,.55,1.40,1.91),
+      straighten:fade(t,.37,.62,1.39,1.66),
+      jab:fade(t,.43,.59,.64,.84),
+    };
+  }
+
+  function joint(origin, pitch, yaw) {
+    const cp = Math.cos(pitch), sp = Math.sin(pitch), cy = Math.cos(yaw), sy = Math.sin(yaw);
+    return {
+      point(x,y,z) {
+        const depth = sp*y+cp*z;
+        return [origin[0]+cy*x+sy*depth,origin[1]+cp*y-sp*z,origin[2]-sy*x+cy*depth];
+      },
+      part(shape,x,y,z,w,h,d,color,roll=0) {
+        primitive(shape,this.point(x,y,z),[w,h,d],color,pitch,yaw,roll);
+      },
+    };
+  }
+
+  function segment(shape, a, b, width, depth, color) {
+    const [x,y,z] = subtract(b,a);
+    primitive(shape,lerp(a,b,.5),[width,depth,Math.hypot(x,y,z)],color,
+      -Math.atan2(y,Math.hypot(x,z)),Math.atan2(x,z));
+  }
+
+  function garment(body, index, shirt, trim) {
+    const [cut,detail] = outfits[index];
+    const inner = 0xe5d9c2;
+    body.part('bevel',0,.258,0,.379,.392,.222,shirt);
+    body.part('bevel',0,.389,.008,.391,.111,.231,shirt);
+    body.part('bevel',0,.087,0,.343,.064,.224,shirt);
+    switch (cut) {
+      case 'hoodie':
+        body.part('round',0,.421,-.076,.276,.177,.183,shirt);
+        for (const side of sides) body.part('bevel',side*.050,.343,.114,.011,.108,.014,trim,side*.15);
+        break;
+      case 'blazer':
+      case 'cardigan':
+      case 'coat':
+        body.part('bevel',0,.302,.111,.145,.277,.019,inner);
+        for (const side of sides) body.part('bevel',side*.071,.351,.124,.071,.164,.024,cut==='cardigan' ? shirt : trim,side*.32);
+        break;
+      case 'shirt':
+      case 'denim':
+      case 'workwear':
+      case 'rugby':
+        for (const side of sides) body.part('bevel',side*.061,.414,.105,.069,.069,.035,trim,side*.55);
+        break;
+      default:
+        body.part('bevel',0,.422,.087,.155,.033,.076,trim);
+    }
+    switch (detail) {
+      case 'tie':
+        body.part('bevel',0,.329,.128,.037,.149,.016,trim,-.035);
+        body.part('bevel',0,.407,.132,.045,.043,.020,trim);
+        break;
+      case 'pouch':
+        body.part('bevel',0,.164,.113,.219,.075,.029,shirt);
+        for (const side of sides) body.part('bevel',side*.090,.183,.132,.011,.041,.010,trim,side*.56);
+        break;
+      case 'buttons':
+        body.part('bevel',0,.212,.123,.048,.239,.020,shirt);
+        for (const y of [.145,.214,.283,.347]) body.part('round',0,y,.139,.018,.018,.013,trim);
+        break;
+      case 'stripes':
+        for (const y of [.21,.274,.34]) body.part('bevel',0,y,.113,.359,.028,.013,trim);
+        break;
+      case 'diamond':
+        body.part('bevel',0,.275,.114,.164,.164,.020,trim,Math.PI/4);
+        body.part('bevel',0,.275,.128,.107,.107,.016,shirt,Math.PI/4);
+        break;
+      case 'raglan':
+        for (const side of sides) body.part('bevel',side*.148,.365,.113,.071,.163,.013,trim,-side*.24);
+        break;
+      case 'pocket':
+      case 'pockets':
+        for (const side of detail==='pockets' ? sides : [1]) {
+          body.part('bevel',side*.105,.305,.118,.095,.086,.024,trim);
+          body.part('bevel',side*.105,.278,.134,.072,.047,.012,shirt);
+        }
+        break;
+      case 'bars':
+        body.part('bevel',0,.247,.115,.018,.282,.018,trim);
+        for (const side of sides) body.part('bevel',side*.126,.333,.113,.085,.023,.012,trim);
+        break;
+      case 'patch':
+        body.part('bevel',.106,.343,.116,.069,.070,.018,trim,.15);
+        body.part('bevel',.106,.343,.131,.039,.016,.010,shirt,.15);
+        break;
+      case 'lapels':
+        for (const side of sides) body.part('bevel',side*.13,.176,.115,.092,.021,.016,trim,side*.23);
+        break;
+      case 'graphic':
+        body.part('round',0,.29,.115,.165,.165,.019,trim);
+        body.part('bevel',-.011,.29,.128,.065,.122,.017,shirt,-.43);
+        break;
+      case 'checks':
+        for (const side of sides) body.part('bevel',side*.099,.256,.116,.018,.241,.012,trim);
+        for (const y of [.217,.299,.379]) body.part('bevel',0,y,.120,.356,.014,.013,trim);
+        break;
+    }
+  }
+
+  function hairstyle(head,index,hair) {
+    if (index===libertySpikesSeat) {
+      const stubble = 0x815f4b;
+      head.part('bevel',0,.084,-.020,.220,.098,.218,stubble);
+      head.part('bevel',0,.015,-.086,.218,.126,.094,stubble);
+      head.part('bevel',0,.091,-.013,.094,.080,.213,hair);
+      for (const [root,tip,width,depth] of libertySpikes) {
+        segment('spike',head.point(...root),head.point(...tip),width,depth,root[0]<0 ? 0x302b2d : hair);
+      }
+      return;
+    }
+    const cropped = index===0 || index===6 || index===12 || index===17;
+    const volume = index===0 ? .069 : .092;
+    head.part('bevel',0,.098,-.019,.222,volume,.227,hair);
+    head.part('bevel',0,.013,-.090,.216,cropped ? .109 : .159,.076,hair);
+    const shape = roundedHair.has(index) ? 'round' : 'bevel';
+    for (const [x,y,z,w,h,d,roll=0] of hairTufts[index]) {
+      head.part(shape,x,y,z,w,h,d,hair,roll);
+    }
+  }
+
+  function face(head, index, hair, skin, frames, glare, alarm) {
+    head.part('bevel',0,0,0,.214,.252,.222,skin);
+    head.part('bevel',0,-.070,.030,.171,.097,.169,skin);
+    head.part('round',0,-.023,.116,.047,.057,.044,skin);
+    if (alarm>0) {
+      head.part('round',0,-.072,.120,mix(.056,.045,alarm),mix(.010,.049,alarm),.015,0x4c302a);
+    } else {
+      head.part('bevel',0,-.072,.112,.056,.010,.011,0x875b49);
+    }
+    for (const side of sides) {
+      head.part('round',side*.108,-.008,-.008,.046,.075,.063,skin);
+      head.part('bevel',side*.047,.017,.108,mix(.050,.056,alarm),mix(.028,.050,alarm),.019,0xf2e7d8);
+      head.part('bevel',side*.046,.017,.120,mix(.019,.015,alarm),.023,.010,0x34322d);
+      head.part('bevel',side*.048,.049-glare*.003+alarm*.035,.107,.052,.010,.013,hair,side*mix(-.08,.39,glare));
+    }
+    hairstyle(head,index,hair);
+    if (!frames) return;
+    const {color,width,height,corner,wire} = frames;
+    const w = width*.5, h = height*.5;
+    const outline = [[-w+corner,-h],[w-corner,-h],[w,-h+corner],[w,h-corner],
+      [w-corner,h],[-w+corner,h],[-w,h-corner],[-w,-h+corner]];
+    for (const side of sides) {
+      const cx = side*.056;
+      for (let i=0;i<outline.length;i++) {
+        const [x1,y1] = outline[i], [x2,y2] = outline[(i+1)%outline.length];
+        segment('box',head.point(cx+x1,.017+y1,.133),head.point(cx+x2,.017+y2,.133),wire,wire,color);
+      }
+      segment('box',head.point(side*.104,.031,.126),head.point(side*.118,.028,-.022),wire,wire,color);
+    }
+    head.part('box',0,.024,.133,.029,wire,wire,color);
+  }
+
+  function cameraLight(socket,pulse) {
+    const red = pulse ? 0xff3428 : 0x712e31;
+    primitive('round',socket,pulse ? [.031,.027,.024] : [.022,.020,.019],red,0,0,0,4);
+    if (pulse) {
+      primitive('round',add(socket,[0,.002,.010]),[.013,.011,.012],0xffa186,0,0,0,4);
+    }
+  }
+
+  function raisedHand(wrist, skin, pose) {
+    const hand = joint(wrist,(1-pose.raise)*1.28,pose.yaw);
+    hand.part('bevel',0,.029,0,.089,.073,.053,skin);
+    // Finger roots, from the thumb side. Center the middle finger on the palm.
+    const fingers = [[-.028,.059,.020,.046],[0,.060,.023,.053],[.024,.058,.019,.048],[.043,.053,.015,.036]];
+    for (const [index,[offset,base,width,length]] of fingers.entries()) {
+      const x = offset*pose.side;
+      const extension = index===1 ? pose.straighten : 0;
+      const bend = mix(1.30,.06,extension);
+      const endBend = mix(2.68,.12,extension);
+      const root = hand.point(x,base,.004);
+      const knuckleHeight = base+Math.cos(bend)*length;
+      const knuckleDepth = .004-Math.sin(bend)*length*.36;
+      const knuckle = hand.point(x,knuckleHeight,knuckleDepth);
+      const tip = hand.point(x,knuckleHeight+Math.cos(endBend)*length*.66,
+        knuckleDepth-Math.sin(endBend)*length*.56);
+      segment('bevel',root,knuckle,width,.025,skin);
+      segment('bevel',knuckle,tip,width*.86,.022,skin);
+    }
+    const thumbKnuckle = hand.point(-.046*pose.side,.045,-.010);
+    segment('bevel',hand.point(-.034*pose.side,.020,-.007),thumbKnuckle,.027,.027,skin);
+    segment('bevel',thumbKnuckle,hand.point(-.027*pose.side,.059,-.027),.023,.022,skin);
+  }
+
+  function openPalm(wrist, skin, pose) {
+    const hand = joint(wrist,mix(1.16,.13,pose.raise),pose.yaw);
+    hand.part('bevel',0,.031,0,.079,.066,.039,skin);
+    for (const [x,height] of [[-.027,.102],[-.009,.117],[.010,.111],[.029,.093]]) {
+      segment('bevel',hand.point(x*pose.side,.054,0),
+        hand.point(x*pose.side*1.33,height,.007),.015,.020,skin);
+    }
+    segment('bevel',hand.point(-.032*pose.side,.025,0),
+      hand.point(-.057*pose.side,.060,.010),.020,.021,skin);
+  }
+
+  function arm(shoulder, target, side, sleeve, skin, shortSleeve, cuff, lowElbow, gesture) {
+    const upper = .304, lower = .305;
+    const delta = subtract(target,shoulder);
+    const reach = length(delta);
+    const aim = scale(delta,1/reach);
+    const distance = clamp(reach,.045,upper+lower-.004);
+    const along = (upper*upper-lower*lower+distance*distance)/(2*distance);
+    const pole = [side*mix(.65,.46,lowElbow),mix(-.17,-1,lowElbow),-.22];
+    const offAxis = subtract(pole,scale(aim,dot(pole,aim)));
+    const elbow = add(add(shoulder,scale(aim,along)),scale(offAxis,Math.sqrt(upper*upper-along*along)/Math.max(.001,length(offAxis))));
+    const wrist = add(shoulder,scale(aim,distance));
+    if (shortSleeve) {
+      const seam = lerp(shoulder,elbow,.61);
+      segment('bevel',shoulder,lerp(shoulder,elbow,.66),.126,.118,sleeve);
+      segment('bevel',seam,elbow,.096,.091,skin);
+    } else {
+      segment('bevel',shoulder,elbow,.124,.119,sleeve);
+    }
+    const handBase = lerp(elbow,wrist,.87);
+    segment('bevel',elbow,handBase,.097,.093,shortSleeve ? skin : sleeve);
+    if (!shortSleeve) segment('bevel',lerp(elbow,wrist,.78),handBase,.102,.099,cuff);
+    primitive('bevel',elbow,[.098,.097,.098],shortSleeve ? skin : sleeve);
+    if (gesture) {
+      segment('bevel',handBase,wrist,.064,.051,skin);
+      if (gesture.open) openPalm(wrist,skin,gesture);
+      else raisedHand(wrist,skin,gesture);
+    } else {
+      segment('bevel',lerp(handBase,wrist,.45),add(wrist,scale(subtract(wrist,handBase),.50)),.077,.061,skin);
+    }
+    return wrist;
+  }
+
+  const release = noteReleaseTime;
+  const catchTime = noteCatchTime;
+
+  function noteHand(x,z,direction,sender) {
+    return [x+(sender ? .393 : .410),sender ? 1.075 : 1.025,z-.68+direction*(sender ? .35 : .37)];
+  }
+
+  function animate(index,elapsed,animated) {
+    const time = animated ? core.game_action_time(index) : -1;
+    const method = time>=0 ? core.game_method(index) : 0;
+    const glanceTime = animated && !method ? core.game_glance_time(index) : -1;
+    const glance = fade(glanceTime,0,.6,3.6,4.2);
+    const ceiling = glance>0 && core.game_glance_ceiling(index);
+    const cameraEar = method===1 ? Math.max(fade(time,.24,.65,1.28,1.64),
+      fade(time,2.39,2.73,3.23,3.65),fade(time,4.64,5.03,5.73,6.24)) : 0;
+    const lookDown = method===2 ? Math.max(fade(time,.28,.52,1.50,1.90),fade(time,4.26,4.54,5.55,6.03)) : 0;
+    const aiEar = method===2 ? fade(time,2.01,2.34,3.55,4.05) : 0;
+    const partner = method===3 ? core.game_note_partner(index) : -1;
+    const sender = partner>=0 && core.game_note_sender(index);
+    const toward = partner>=0 ? Math.sign(desks[partner][1]-desks[index][1]) : 0;
+    const reach = sender
+      ? fade(time,release-.24,release-.06,release+.04,release+.32)
+      : fade(time,catchTime-.26,catchTime-.06,catchTime+.07,catchTime+.39);
+    const read = partner>=0 && !sender
+      ? fade(time,catchTime+.19,catchTime+.46,catchTime+1.38,catchTime+1.86) : 0;
+    const twist = partner>=0
+      ? fade(time,release-.74,release-.25,catchTime+.02,catchTime+.47) : 0;
+    const lead = toward<0 ? 1 : .44;
+    const write = (1-Math.max(glance,lookDown*.95,twist,read,aiEar*.72)) *
+      (.43+.57*smooth((Math.sin(elapsed*1.53+index*2.39)+.8)*1.27));
+    return {method,time,glance,ceiling,cameraEar,lookDown,aiEar,partner,sender,toward,reach,read,twist,lead,write};
+  }
+
+  function student(index, elapsed, motion, reaction, camera, caughtAge) {
+    const [x,z] = desks[index];
+    const [hair,shirt,trim,trousers,skin,glasses] = studentProfiles[index];
+    const {method,time,glance,ceiling,cameraEar,lookDown,aiEar,sender,toward,reach,read,twist,lead,write} = motion;
+    const ear = Math.max(cameraEar,aiEar);
+    const phase = elapsed+index*.318;
+    const height = (index%3-1)*.012;
+    const startled = caughtAge!==undefined;
+    const alarm = startled ? smooth(caughtAge/.14) : 0;
+    const recoil = startled ? fade(caughtAge,0,.10,.14,.39) : 0;
+    const panicHands = startled ? smooth((caughtAge-.06)/.27) : 0;
+    const scan = startled ? Math.sin((caughtAge-.23)*19)*fade(caughtAge,.23,.39,.64,.82)*.31 : 0;
+    const turn = startled ? smooth(caughtAge/.22) : reaction?.turn ?? 0;
+    const lookYaw = startled ? Math.atan2(camera.x-x,camera.z-(z-.704)) : reaction?.yaw ?? 0;
+    const bodyPitch = mix(.27-glance*.19+lookDown*.52+read*.10-twist*.16,startled ? -.025-recoil*.23 : .07,turn);
+    const bodyYaw = mix(twist*lead*.68+lookDown*.32,clamp(lookYaw,-1.30,1.30),turn);
+    const body = joint([x+lookDown*.074*(1-turn),.524+height+Math.sin(phase*2.1)*.004+recoil*.059,
+      z-.704-lookDown*.18*(1-turn)],bodyPitch,bodyYaw);
+    const neck = body.point(0,.467,.012);
+    const lookPitch = reaction || startled ? -Math.atan2(camera.y-neck[1]-.12,Math.hypot(camera.x-neck[0],camera.z-neck[2])) : 0;
+    const headPitch = mix(.52+Math.sin(phase*3.4)*.052-glance*(ceiling ? 1.33 : .64)+lookDown*.68+read*.27-twist*.57-ear*.18,
+      clamp(lookPitch-recoil*.18,-.65,.50),turn);
+    const idleHeadYaw = Math.sin(phase*1.3)*.10+ear*.23+lookDown*.51+twist*lead*1.63+read*.26;
+    const headYaw = mix(idleHeadYaw,startled ? idleHeadYaw+wrapAngle(lookYaw-idleHeadYaw)+scan : lookYaw,turn);
+    const headPivot = joint(neck,headPitch,headYaw);
+    const head = joint(headPivot.point(0,.118,.014),headPitch,headYaw);
+
+    garment(body,index,shirt,trim);
+    body.part('round',0,.451,.004,.128,.139,.122,skin);
+    face(head,index,hair,skin,eyewear[glasses],reaction?.turn ?? 0,alarm);
+    if (method===1 && alarm<.5) {
+      const pulse = time>.41 && time<6.92 && (time%1.24<.85);
+      cameraLight(glasses ? head.point(-.099,.031,.145) : body.point(0,.340,.148),pulse);
+    }
+
+    let noteWrist;
+    for (const side of sides) {
+      const hip = [x+side*.100,.494,z-.673];
+      const knee = [x+side*.126,.433,z-.269];
+      const ankle = [x+side*.144,.126,z-.255+Math.sin(phase*1.54)*.019];
+      segment('bevel',hip,knee,.166,.173,trousers);
+      primitive('bevel',knee,[.145,.143,.144],trousers);
+      segment('bevel',knee,ankle,.129,.135,trousers);
+      primitive('bevel',[ankle[0],.096,ankle[2]+.045],[.148,.116,.241],0x3d3937,0,side*.13);
+      primitive('bevel',[ankle[0],.042,ankle[2]+.05],[.150,.047,.246],0xaba08d,0,side*.13);
+
+      const writes = side<0;
+      const strokeX = Math.sin(phase*12.1)*.031*write*(1-turn);
+      const strokeZ = Math.sin(phase*4.2+.4)*.057*write*(1-turn);
+      const rest = writes ? [x-.128+strokeX,.863,z-.095+strokeZ] : [x+.068,.836,z-.149];
+      let target = rest;
+      if (writes) {
+        target = lerp(target,[x-.16,.865,z-.19],Math.max(glance,twist,lookDown));
+      } else {
+        target = lerp(target,head.point(.143,-.007,.028),ear);
+        target = lerp(target,[x+.298,.641,z-.308],lookDown);
+        if (sender) {
+          target = lerp(target,[x+.231,.941,z-.49],fade(time,release-.64,release-.37,release,release+.35));
+          target = lerp(target,noteHand(x,z,toward,true),reach);
+        } else if (toward) {
+          target = lerp(target,[x+.107,.862,z-.082],read);
+          target = lerp(target,noteHand(x,z,toward,false),reach);
+        }
+      }
+      const cuff = ['track','baseball','bomber'].includes(outfits[index][0]) ? trim : shirt;
+      const sleeve = outfits[index][0]==='baseball' ? trim : shirt;
+      const gesture = panicHands>0 ? {open:true,side,yaw:lookYaw,raise:panicHands}
+        : reaction?.raise>0 && side===reaction.side ? reaction : null;
+      if (gesture?.open) {
+        const towardCamera = joint(neck,0,lookYaw);
+        const shake = Math.sin(caughtAge*38+side)*.024;
+        target = lerp(target,towardCamera.point(side*(.257+shake),.030+shake+recoil*.06,.176),panicHands);
+      } else if (gesture) {
+        const towardCamera = joint(neck,0,gesture.yaw);
+        target = lerp(target,towardCamera.point(side*.222,.117+gesture.jab*.016,.216+gesture.jab*.064),gesture.raise);
+      }
+      const lowElbow = Math.max(writes ? lookDown*.47 : Math.max(ear,lookDown,reach*.7),gesture?.raise ?? 0);
+      const wrist = arm(body.point(side*.187,.367,.019),target,side,sleeve,skin,outfits[index][2],cuff,lowElbow,gesture);
+      if (writes && !gesture) {
+        const grip = add(wrist,[.003,.028,-.011]);
+        const penTip = lerp(add(wrist,[.030,-.052,.053]),add(wrist,[.024,-.014,.066]),
+          Math.max(glance,twist,lookDown,read));
+        segment('bevel',grip,penTip,.012,.012,0x27393b);
+        segment('bevel',lerp(grip,penTip,.84),penTip,.010,.010,0xc7b284);
+      } else if (!writes) {
+        noteWrist = wrist;
+        if (lookDown>0 && wrist[1]<.738 && alarm<.5) {
+          primitive('bevel',add(wrist,[-.019,-.006,.033]),[.079,.014,.127],0x303736,.16,.17);
+          primitive('box',add(wrist,[-.019,.003,.033]),[.066,.008,.108],0x6d9c91,.16,.17);
+        }
+      }
+    }
+    return startled ? null : noteWrist;
+  }
+
+  function paperAt(hand) {
+    return add(hand,[.002,.025,.013]);
+  }
+
+  function paper(point, pitch, yaw, roll) {
+    primitive('bevel',point,[.122,.017,.086],0xffe7ae,pitch,yaw,roll);
+    const stripe = joint(point,pitch,yaw);
+    stripe.part('box',-.01,.009,.002,.067,.003,.007,0xad7e4e,roll);
+  }
+
+  function exchange(index, motion, hands) {
+    const {time,partner} = motion;
+    if (time<release-.26 || time>=catchTime+1.28) return;
+    const [rx,rz] = desks[partner];
+    const destination = hands[partner] ?? [rx+.16,.791,rz-.09];
+    if (time<release) {
+      paper(paperAt(hands[index]),-.10,.24,0);
+    } else if (time<catchTime) {
+      const from = paperAt(hands[index]);
+      const to = paperAt(destination);
+      const t = (time-release)/(catchTime-release);
+      const point = lerp(from,to,t);
+      point[1] += 4*t*(1-t)*.16;
+      paper(point,-.10+t*Math.PI*2,.24-t*.42,Math.sin(t*Math.PI)*.26);
+    } else {
+      paper(paperAt(destination),-.10,-.18,0);
+    }
+  }
+
+  function draw(elapsed,animated,camera,effectDelta,catches) {
+    const motions = desks.map((_,index) => {
+      const age = catches.get(index);
+      if (core.game_is_caught(index) && (age===undefined || age>=caughtSurpriseDuration)) return null;
+      return animate(index,elapsed,animated);
+    });
+    const hands = motions.map((motion,index) => motion ? student(index,elapsed,motion,
+      reactionAt(index,effectDelta,camera),camera,catches.get(index)) : null);
+    for (const [index,motion] of motions.entries()) {
+      if (!motion || motion.partner<0 || catches.has(index)) continue;
+      if (motion.sender) exchange(index,motion,hands);
+      else if (!hands[motion.partner] && motion.time>=catchTime && motion.time<catchTime+1.28) {
+        paper(paperAt(hands[index]),-.10,-.18,0);
+      }
+    }
+  }
+
+  return {draw,reactToWrongAccusation,resetReactions};
+}
+
+function createClassroom(canvas, core, onBurst) {
+  const gl = canvas.getContext('webgl2', { alpha: false, antialias: true, powerPreference: 'high-performance' });
+  if (!gl) throw new Error('이 브라우저에서 WebGL 2를 사용할 수 없어요. 하드웨어 가속을 켜고 다시 열어 주세요.');
+
+  const vertexSource = `#version 300 es
+    layout(location=0) in vec3 position;
+    layout(location=1) in vec3 normal;
+    layout(location=2) in vec3 center;
+    layout(location=3) in vec3 size;
+    layout(location=4) in vec4 pose;
+    layout(location=5) in vec3 tint;
+    uniform mat4 viewProjection;
+    out vec3 world;
+    out vec3 axis;
+    out vec3 base;
+    flat out float material;
+
+    vec3 orient(vec3 p) {
+      float c = cos(pose.z), s = sin(pose.z);
+      p = vec3(c*p.x-s*p.y, s*p.x+c*p.y, p.z);
+      c = cos(pose.x); s = sin(pose.x);
+      p = vec3(p.x, c*p.y-s*p.z, s*p.y+c*p.z);
+      c = cos(pose.y); s = sin(pose.y);
+      return vec3(c*p.x+s*p.z, p.y, -s*p.x+c*p.z);
+    }
+
+    void main() {
+      world = center + orient(position * size);
+      axis = orient(normal / size);
+      base = tint;
+      material = pose.w;
+      gl_Position = viewProjection * vec4(world, 1.0);
+    }`;
+
+  const fragmentSource = `#version 300 es
+    precision highp float;
+    in vec3 world;
+    in vec3 axis;
+    in vec3 base;
+    flat in float material;
+    uniform vec3 eye;
+    out vec4 pixel;
+
+    float stoneHash(vec2 cell) {
+      return fract(sin(dot(cell,vec2(127.1,311.7)))*43758.5453);
+    }
+
+    float stoneNoise(vec2 p) {
+      vec2 cell = floor(p), uv = fract(p);
+      uv = uv*uv*(3.0-2.0*uv);
+      return mix(mix(stoneHash(cell),stoneHash(cell+vec2(1,0)),uv.x),
+                 mix(stoneHash(cell+vec2(0,1)),stoneHash(cell+1.0),uv.x),uv.y);
+    }
+
+    void main() {
+      vec3 color = base;
+      vec3 n = normalize(axis);
+      float light = 0.66 + 0.32*max(0.0,dot(n,normalize(vec3(-0.72, 0.91, 0.46))));
+      light += 0.11*max(0.0,dot(n,normalize(vec3(0.75, 0.45, -0.40))));
+      if (material==1.0) {
+        vec2 p = world.xz;
+        vec2 grid = (p+vec2(.58,.38))/1.16;
+        vec2 tile = floor(grid), edges = min(fract(grid),1.0-fract(grid));
+        float grout = smoothstep(.004,.013,min(edges.x,edges.y));
+        vec2 stone = p + vec2(stoneHash(tile),stoneHash(tile+21.0))*1.41;
+        float cloud = .70*stoneNoise(stone*.95)+.3*stoneNoise(stone*3.8);
+        float ribbon = dot(stone,vec2(.51,.75))+cloud*.62+stoneNoise(stone*7.0)*.054;
+        float vein = 1.0-smoothstep(.018,.119,abs(sin(ribbon*6.1)));
+        float seamVein = 1.0-smoothstep(.013,.055,abs(sin((ribbon+.027)*6.1)));
+        color *= .90+cloud*.12+stoneHash(tile)*.055;
+        color = mix(color,vec3(.47,.50,.50),vein*.40+seamVein*.12);
+        color = mix(vec3(.39,.42,.41),color,grout);
+        vec2 place = mod(p + vec2(4.30, -1.78), vec2(2.15, 1.74)) - vec2(1.075, 0.87);
+        if (abs(p.x)<3.95 && p.y<3.1 && p.y>-4.73) {
+          light *= 0.73 + 0.27*smoothstep(0.22, 0.79, length(place*vec2(1.0,1.18)));
+        }
+        float windowBand = smoothstep(0.06,0.17,fract((p.y + p.x*0.37)*0.28));
+        light += .19*windowBand*(1.0-smoothstep(-4.0,3.5,p.x))*grout;
+      }
+      if (material==2.0) {
+        color *= 0.92 + 0.045*sin(world.z*141.0+sin(world.x*19.0)) + 0.035*sin(world.z*34.0);
+      }
+      if (material==3.0) light=1.10;
+      if (material==4.0) {
+        pixel=vec4(color,1.0);
+        return;
+      }
+      float haze=min(0.12, distance(eye,world)*0.008);
+      pixel=vec4(mix(color*light,vec3(0.45,0.49,0.45),haze),1.0);
+    }`;
+
+  function compile(type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
+    return shader;
+  }
+
+  const program = gl.createProgram();
+  gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexSource));
+  gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentSource));
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+
+  const faces = [
+    [[1, 0, 0], [[.5,-.5,-.5],[.5,.5,-.5],[.5,.5,.5],[.5,-.5,.5]]],
+    [[-1, 0, 0], [[-.5,-.5,.5],[-.5,.5,.5],[-.5,.5,-.5],[-.5,-.5,-.5]]],
+    [[0, 1, 0], [[-.5,.5,-.5],[-.5,.5,.5],[.5,.5,.5],[.5,.5,-.5]]],
+    [[0,-1, 0], [[-.5,-.5,.5],[-.5,-.5,-.5],[.5,-.5,-.5],[.5,-.5,.5]]],
+    [[0, 0, 1], [[.5,-.5,.5],[.5,.5,.5],[-.5,.5,.5],[-.5,-.5,.5]]],
+    [[0, 0,-1], [[-.5,-.5,-.5],[-.5,.5,-.5],[.5,.5,-.5],[.5,-.5,-.5]]],
+  ];
+  const quad = [0,1,2,0,2,3];
+  const boxVertices = faces.flatMap(([normal,corners]) => quad.flatMap(i => [...corners[i],...normal]));
+
+  function bevelVertices() {
+    const vertices = [];
+    const inset = .385;
+    function face(normal, points, order) {
+      for (const i of order) vertices.push(...points[i],...normal);
+    }
+    for (const [normal,corners] of faces) {
+      face(normal,corners.map(p => p.map((v,i) => normal[i] ? v : v*inset*2)),quad);
+    }
+    for (const [a,b,c] of [[0,1,2],[0,2,1],[1,2,0]]) {
+      for (const sa of [-1,1]) for (const sb of [-1,1]) {
+        const normal = [0,0,0];
+        normal[a] = sa;
+        normal[b] = sb;
+        const points = [[.5,inset,-inset],[.5,inset,inset],[inset,.5,inset],[inset,.5,-inset]]
+          .map(([u,v,w]) => {
+            const point = [0,0,0];
+            point[a] = u*sa; point[b] = v*sb; point[c] = w;
+            return point;
+          });
+        face(normal,points,quad);
+      }
+    }
+    for (const x of [-1,1]) for (const y of [-1,1]) for (const z of [-1,1]) {
+      face([x,y,z],[[.5*x,inset*y,inset*z],[inset*x,.5*y,inset*z],[inset*x,inset*y,.5*z]],[0,1,2]);
+    }
+    return vertices;
+  }
+
+  function roundVertices() {
+    const vertices = [];
+    const rings = 6, sides = 10;
+    function point(ring, side) {
+      const lat = Math.PI*ring/rings;
+      const lon = 2*Math.PI*side/sides;
+      const normal = [Math.sin(lat)*Math.sin(lon),Math.cos(lat),Math.sin(lat)*Math.cos(lon)];
+      return [...normal.map(n => n*.5),...normal];
+    }
+    for (let ring=0;ring<rings;ring++) for (let side=0;side<sides;side++) {
+      const points = [point(ring,side),point(ring+1,side),point(ring+1,side+1),point(ring,side+1)];
+      if (ring<rings-1) vertices.push(...points[0],...points[1],...points[2]);
+      if (ring>0) vertices.push(...points[0],...points[2],...points[3]);
+    }
+    return vertices;
+  }
+
+  function spikeVertices() {
+    const vertices = [];
+    const sides = 6;
+    for (let side=0;side<sides;side++) {
+      const a = side*2*Math.PI/sides;
+      const b = (side+1)*2*Math.PI/sides;
+      const rootA = [.5*Math.cos(a),.5*Math.sin(a),-.5];
+      const rootB = [.5*Math.cos(b),.5*Math.sin(b),-.5];
+      const normal = [Math.cos((a+b)*.5),Math.sin((a+b)*.5),.5*Math.cos(Math.PI/sides)];
+      for (const point of [rootA,rootB,[0,0,.5]]) vertices.push(...point,...normal);
+      for (const point of [rootB,rootA,[0,0,-.5]]) vertices.push(...point,0,0,-1);
+    }
+    return vertices;
+  }
+
+  const stride = 13;
+  function makeMesh(vertices) {
+    const vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+    for (let i=0;i<2;i++) {
+      gl.enableVertexAttribArray(i);
+      gl.vertexAttribPointer(i,3,gl.FLOAT,false,24,i*12);
+    }
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+    for (const [i,size,offset] of [[2,3,0],[3,3,3],[4,4,6],[5,3,10]]) {
+      gl.enableVertexAttribArray(i);
+      gl.vertexAttribPointer(i,size,gl.FLOAT,false,stride*4,offset*4);
+      gl.vertexAttribDivisor(i,1);
+    }
+    return {vao,buffer,vertices:vertices.length/6,data:new Float32Array(1024*stride),cursor:0};
+  }
+  const meshes = {
+    box:makeMesh(boxVertices), bevel:makeMesh(bevelVertices()), round:makeMesh(roundVertices()),
+    spike:makeMesh(spikeVertices()),
+  };
+  gl.enable(gl.DEPTH_TEST);
+  gl.clearColor(.30, .34, .32, 1);
+  const projectionLocation = gl.getUniformLocation(program, 'viewProjection');
+  const eyeLocation = gl.getUniformLocation(program, 'eye');
+
+  const palette = new Map();
+  const desks = Array.from({length: core.game_seat_count()}, (_, i) => [core.game_seat_x(i), core.game_seat_z(i)]);
+
+  function primitive(shape, center, size, hex, pitch=0, yaw=0, roll=0, material=0) {
+    const mesh = meshes[shape];
+    if (!palette.has(hex)) palette.set(hex, [hex >> 16, (hex >> 8) & 255, hex & 255].map(n => n / 255));
+    if (mesh.cursor+stride>mesh.data.length) {
+      const larger = new Float32Array(mesh.data.length*2);
+      larger.set(mesh.data);
+      mesh.data = larger;
+    }
+    const start = mesh.cursor;
+    mesh.data.set(center,start);
+    mesh.data.set(size,start+3);
+    mesh.data[start+6] = pitch;
+    mesh.data[start+7] = yaw;
+    mesh.data[start+8] = roll;
+    mesh.data[start+9] = material;
+    mesh.data.set(palette.get(hex),start+10);
+    mesh.cursor += stride;
+  }
+
+  function box(x,y,z,w,h,d,hex,material=0,pitch=0,yaw=0) {
+    primitive('box',[x,y,z],[w,h,d],hex,pitch,yaw,0,material);
+  }
+
+  const wood = 0xbb9168;
+  const metal = 0x677775;
+  const wall = 0xd1cbb6;
+  const trim = 0x67796f;
+  box(0,-.09,0,9.69,.17,12.56,0xdddcd1,1);
+  box(0,3.18,0,9.69,.10,12.56,0xd3cbbb);
+  box(0,1.56,6.23,9.69,3.12,.15,wall);
+  box(4.80,1.56,0,.14,3.12,12.56,wall);
+  box(0,1.56,-6.23,9.69,3.12,.15,0xb6b3a2);
+  const clockY = 2.59;
+  box(0,clockY,-6.105,2.18,.68,.13,0x38443d);
+  box(0,clockY,-6.029,2.04,.53,.025,0x142621);
+  for (const x of [-1.025,1.025]) box(x,clockY,-6.011,.036,.036,.016,0xa4a393);
+  box(-4.80,.46,0,.14,.92,12.56,wall);
+  box(-4.80,2.97,0,.14,.29,12.56,wall);
+  box(-4.77,1.52,5.39,.14,2.45,1.68,wall);
+  box(-4.77,1.52,-5.43,.14,2.45,1.63,wall);
+  box(-4.76,.89,0,.34,.13,12.44,0xb6ae96);
+  for (const z of [-4.48,-2.23,0,2.23,4.48]) box(-4.79,1.86,z,.16,2.02,.10,0x63766c);
+  box(-4.79,2.12,0,.15,.05,9.00,0x71887d);
+  box(-4.97,2.61,0,.16,.15,9.14,0xc4bda2);
+  box(-5.63,1.83,0,.12,3.72,15.00,0xf1be8f,3);
+  box(-5.56,1.11,0,.10,.23,15.00,0xd8ab85,3);
+  for (let i=0;i<16;i++) {
+    const height=.25+(i*17%9)*.075;
+    box(-5.44,.85+height/2, -5.6+i*.76,.13,height,.58,0x9a9b8b,3);
+    box(-5.36,.88+height,-5.6+i*.76,.11,.075,.52,0xada797,3);
+  }
+  for (const z of [-6.14, 6.14]) box(0,.10,z,9.57,.20,.07,trim);
+  for (const x of [-4.72, 4.72]) box(x,.10,0,.07,.20,12.52,trim);
+  for (const z of [-3.8, 0, 3.8]) {
+    for (const x of [-2.13, 2.13]) {
+      box(x,3.08,z,1.68,.12,.25,0xa8a99b);
+      box(x,3.01,z,1.56,.028,.19,0xfff0c6,3);
+    }
+  }
+  box(0,1.97,6.07,5.28,1.35,.19,0x9a8b74);
+  box(0,1.97,5.96,5.10,1.18,.05,0x364f44);
+  box(0,1.33,5.90,5.15,.046,.19,0x97866c);
+  box(-.75,1.36,5.88,.14,.025,.035,0xeee2c7);
+  box(3.68,1.09,6.10,1.20,2.18,.17,0x7c887b);
+  box(3.68,1.13,5.99,1.04,2.04,.06,0x526a61);
+  box(3.68,1.51,5.94,.62,.77,.04,0x8eaca1);
+  box(3.31,1.00,5.89,.16,.045,.07,0xbca57e);
+  box(4.68,1.55,1.6,.10,.98,1.82,0x9b957a);
+  for (const z of [.99, 1.47, 2.01]) box(4.61,1.61,z,.025,.70,.38,0xe5d9b8);
+  for (const x of [3.55, 4.25, -3.8]) {
+    box(x,.46,-5.82,.64,.90,.54,0x687d75);
+    box(x,.94,-5.82,.66,.07,.56,wood,2);
+    box(x,.67,-5.54,.12,.03,.04,0x9fa99b);
+  }
+
+  box(0,.79,5.65,2,.09,.70,wood,2);
+  box(0,.45,5.91,1.90,.66,.055,0x706e61);
+  for (const x of [-.87,.87]) for (const z of [5.39,5.87]) box(x,.40,z,.07,.77,.07,metal);
+  box(-.52,.863,5.58,.32,.04,.24,0x8d6b50,2);
+  box(.35,.85,5.63,.26,.017,.20,0xeadbc0);
+  box(.62,.92,5.71,.12,.18,.12,0x8e9a85);
+
+  for (const [x,z] of desks) {
+    box(x,.752,z,1,.07,.72,wood,2);
+    box(x,.65,z,1,.07,.70,0x9a8e79);
+    for (const side of [-1,1]) {
+      for (const depth of [-1,1]) box(x+side*.43,.345,z+depth*.28,.051,.69,.052,metal);
+      box(x+side*.185,.224,z-.65,.048,.45,.048,metal);
+      box(x+side*.185,.33,z-.90,.048,.66,.048,metal);
+    }
+    box(x,.44,z-.69,.43,.052,.43,0x687e77);
+    box(x,.73,z-.90,.44,.31,.061,0x78928a);
+    box(x-.09,.798,z+.04,.32,.014,.40,0xe8dcc5);
+    for (let line=0;line<6;line++) box(x-.11,.807,z-.06+line*.039,.205,.002,.005,0xa9ab9d);
+    box(x+.28,.82,z-.07,.158,.053,.23,0x6f7d78,0,0,.08);
+    box(x+.13,.809,z+.18,.017,.015,.23,0x354e48,0,0,-.16);
+  }
+  const staticLength = meshes.box.cursor;
+  const students = createStudentActors(core,desks,primitive);
+  const catches = new Map();
+  const burstDuration = .59;
+  const burstColors = [0xffdd93,0xffab67,0xf7f0cb,0x8dd6b8];
+
+  function catchStudent(seat) {
+    catches.set(seat,0);
+  }
+
+  function advanceCatches(dt,camera) {
+    for (const [seat,age] of catches) {
+      const next = age+dt;
+      if (age<caughtSurpriseDuration && next>=caughtSurpriseDuration) {
+        catches.set(seat,caughtSurpriseDuration);
+        onBurst(seat,camera);
+      } else if (next>=caughtSurpriseDuration+burstDuration) catches.delete(seat);
+      else catches.set(seat,next);
+    }
+  }
+
+  function drawBursts() {
+    for (const [seat,age] of catches) {
+      const t = age-caughtSurpriseDuration;
+      if (t<0) continue;
+      const [originX, deskZ] = desks[seat];
+      const originZ = deskZ-.62;
+      const fade = 1-t/burstDuration;
+      for (let i=0;i<26;i++) {
+        const angle = i*2.399963;
+        const speed = 1.2+(i%5)*.49;
+        const size = (.079+(i%4)*.025)*fade;
+        const x = originX+Math.cos(angle)*speed*t;
+        const y = Math.max(.07,1.08+((i%7)*.52-.65)*t-4.1*t*t);
+        const z = originZ+Math.sin(angle)*speed*t;
+        box(x,y,z,size*1.4,size,size*.76,burstColors[i%burstColors.length],3,t*9+i,t*13);
+      }
+      if (t<.17) {
+        const size = .31*(1-t/.17)+.07;
+        primitive('spike',[originX,1.12,originZ],[size*2,size*2.3,size*2],0xfff0b1,t*6,0,0,3);
+      }
+    }
+  }
+
+  function multiply(a, b) {
+    const matrix = new Float32Array(16);
+    for (let col=0; col<4; col++) {
+      for (let row=0; row<4; row++) {
+        for (let k=0; k<4; k++) matrix[col*4+row] += a[k*4+row]*b[col*4+k];
+      }
+    }
+    return matrix;
+  }
+
+  function direction(yaw, pitch) {
+    return [Math.sin(yaw)*Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw)*Math.cos(pitch)];
+  }
+
+  const digitSegments = ['abcdef','bc','abdeg','abcdg','bcfg','acdfg','acdefg','abc','abcdefg','abcdfg'];
+  const segmentLayout = [
+    [0,.189,.256,.045], [.132,.096,.043,.142], [.132,-.096,.043,.142],
+    [0,-.189,.256,.045], [-.132,-.096,.043,.142], [-.132,.096,.043,.142],
+    [0,0,.256,.04],
+  ];
+  const digitCenters = [-.735,-.333,.333,.735];
+  function drawClock(remaining) {
+    const seconds = Math.max(0,Math.ceil(remaining));
+    const minutes = Math.floor(seconds/60);
+    const digits = [Math.floor(minutes/10),minutes%10,Math.floor((seconds%60)/10),seconds%10];
+    const light = seconds<=30 ? 0xff9471 : 0xffd594;
+    for (let i=0;i<digits.length;i++) {
+      const enabled = digitSegments[digits[i]];
+      for (const [index,[x,y,w,h]] of segmentLayout.entries()) {
+        const on = enabled.includes('abcdefg'[index]);
+        box(digitCenters[i]+x,clockY+y,-6.007,w,h,.023,on ? light : 0x27342f,on ? 3 : 0);
+      }
+    }
+    for (const y of [-.073,.073]) box(0,clockY+y,-6.007,.051,.051,.023,light,3);
+  }
+
+  function markDesk(seat) {
+    const [x,z] = desks[seat];
+    const color = core.game_near(seat) ? 0xffd78e : 0xb9bfa4;
+    for (const dx of [-1,1]) for (const dz of [-1,1]) {
+      box(x+dx*.448,.792,z+dz*.293,.022,.011,.125,color,3);
+      box(x+dx*.377,.792,z+dz*.348,.164,.011,.022,color,3);
+    }
+  }
+
+  function draw(camera, elapsed, remaining, zoom, animated, effectDelta, aimedSeat) {
+    const scale = Math.min(window.devicePixelRatio || 1, 1.65);
+    const width = Math.max(1,Math.floor(canvas.clientWidth*scale));
+    const height = Math.max(1,Math.floor(canvas.clientHeight*scale));
+    if (canvas.width!==width || canvas.height!==height) { canvas.width=width; canvas.height=height; }
+    gl.viewport(0,0,width,height);
+    gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    const { x,y,z,yaw,pitch } = camera;
+    const forward = direction(yaw,pitch);
+    const right = [Math.cos(yaw),0,Math.sin(yaw)];
+    const up = [-Math.sin(yaw)*Math.sin(pitch),Math.cos(pitch),Math.cos(yaw)*Math.sin(pitch)];
+    const dot = v => v[0]*x + v[1]*y + v[2]*z;
+    const view = [right[0],up[0],-forward[0],0,right[1],up[1],-forward[1],0,
+      right[2],up[2],-forward[2],0,-dot(right),-dot(up),dot(forward),1];
+    const f = 1/Math.tan((zoom ? .48 : 1.00)/2);
+    const perspective = [f/(width/height),0,0,0, 0,f,0,0, 0,0,-1.003,-1, 0,0,-.109,0];
+    gl.useProgram(program);
+    gl.uniformMatrix4fv(projectionLocation,false,multiply(perspective,view));
+    gl.uniform3f(eyeLocation,x,y,z);
+    meshes.box.cursor = staticLength;
+    meshes.bevel.cursor = meshes.round.cursor = meshes.spike.cursor = 0;
+    drawClock(remaining);
+    advanceCatches(effectDelta,camera);
+    students.draw(elapsed,animated,camera,effectDelta,catches);
+    drawBursts();
+    if (aimedSeat>=0) markDesk(aimedSeat);
+    for (const mesh of Object.values(meshes)) {
+      if (!mesh.cursor) continue;
+      gl.bindVertexArray(mesh.vao);
+      gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buffer);
+      gl.bufferData(gl.ARRAY_BUFFER,mesh.data.subarray(0,mesh.cursor),gl.DYNAMIC_DRAW);
+      gl.drawArraysInstanced(gl.TRIANGLES,0,mesh.vertices,mesh.cursor/stride);
+    }
+  }
+
+  function resetEffects() {
+    catches.clear();
+    students.resetReactions();
+  }
+
+  return {draw,direction,catchStudent,hasCatchEffects:()=>catches.size>0,resetEffects,
+    reactToWrongAccusation:students.reactToWrongAccusation};
+}
+
+function createClassroomAudio(core, mix={}) {
+  const gains = {pencil:.57, page:.55, note:.80, step:.68, burst:1};
+  const desks = Array.from({length:core.game_seat_count()},(_,seat)=>
+    [core.game_seat_x(seat),core.game_seat_z(seat)]);
+  const stride = .82;
+  let context, masterGain, roomGain, samples;
+  let events = [], next = 0, distanceWalked = 0, foot = 0;
+
+  function buildSamples() {
+    const rate = context.sampleRate;
+    const tau = Math.PI*2;
+    function record(seconds, shape) {
+      const buffer = context.createBuffer(1,Math.ceil(rate*seconds),rate);
+      const data = buffer.getChannelData(0);
+      let fast = 0, slow = 0;
+      for (let i=0;i<data.length;i++) {
+        const white = Math.random()*2-1;
+        fast += .30*(white-fast);
+        slow += .047*(white-slow);
+        const end = Math.min(1,(data.length-i)/(rate*.016));
+        data[i] = shape(i/rate,fast-slow,slow)*end;
+      }
+      return buffer;
+    }
+
+    return {
+      pencil: [0,1,2].map(i=>record(.29+i*.05,(t,grain,rumble)=>{
+        const pressure = Math.pow(Math.max(0,Math.sin(t*(39+i*5)+i)),.65);
+        const envelope = Math.min(1,t/.022)*Math.exp(-t*2.3);
+        return (grain*.45+rumble*.12)*envelope*(.12+.88*pressure);
+      })),
+      page: [0,1,2].map(i=>record(.33+i*.035,(t,grain,rumble)=>{
+        const lift = Math.min(1,t/.052)*Math.exp(-t*8);
+        const crease = Math.exp(-Math.pow((t-(.17+i*.014))/.033,2));
+        return (grain*.56+rumble*.37)*(lift*(.58+.42*Math.sin(t*(63+i*8)))+crease*.32);
+      })),
+      note: [record(.125,(t,grain,rumble)=>{
+        const attack = Math.min(1,t/.003);
+        const tap = Math.sin(t*2*Math.PI*242)*Math.exp(-t*80)*.24;
+        return attack*(tap+(grain*.87+rumble*.24)*Math.exp(-t*33));
+      })],
+      step: [0,1].map(i=>record(.27,(t,grain)=>{
+        const attack = Math.min(1,t/.002);
+        const heel = Math.sin(t*2*Math.PI*(83+i*6))*.59*Math.exp(-t*24);
+        const knock = (Math.sin(t*2*Math.PI*467)*.22+Math.sin(t*2*Math.PI*910)*.085)*Math.exp(-t*69);
+        const tapTime = Math.max(0,t-.047);
+        const toe = Math.sin(tapTime*2*Math.PI*(157+i*14))*.25*Math.exp(-tapTime*60);
+        return attack*(heel+knock+grain*.052*Math.exp(-t*111))+toe;
+      })),
+      burst: [record(.34,(t,grain,rumble)=>{
+        const attack = Math.min(1,t/.003);
+        const cycles = 49*t+(91/25)*(1-Math.exp(-25*t));
+        const body = Math.sin(tau*cycles)*.63*Math.exp(-t*15);
+        const air = (grain*.56+rumble*.64)*Math.exp(-t*26);
+        const snap = Math.sin(tau*219*t)*.14*Math.exp(-t*49);
+        return Math.tanh(attack*(body+air+snap));
+      })],
+    };
+  }
+
+  function setActive(active) {
+    if (active) {
+      try {
+        if (!context && typeof AudioContext==='function') {
+          context = new AudioContext();
+          masterGain = context.createGain();
+          masterGain.connect(context.destination);
+          roomGain = context.createGain();
+          roomGain.connect(masterGain);
+          updateMix();
+          samples = buildSamples();
+        }
+        if (context?.state==='suspended') context.resume().catch(()=>{});
+      } catch {
+        // Gameplay can continue on devices without Web Audio.
+      }
+    }
+    if (roomGain) roomGain.gain.setTargetAtTime(active?1:0,context.currentTime,.012);
+  }
+
+  function updateMix() {
+    if (masterGain) masterGain.gain.setTargetAtTime((mix.master ?? 100)/100,context.currentTime,.012);
+  }
+
+  function play(kind, variation, position, camera, output=roomGain) {
+    if (!samples || context.state!=='running') return;
+    let level = gains[kind]*(mix[kind] ?? 100)/100, pan = 0;
+    if (!level) return;
+    if (position) {
+      const dx = position[0]-camera.x, dz = position[1]-camera.z;
+      const distance = Math.hypot(dx,dz);
+      if (distance>12.5) return;
+      level /= 1+distance*.42+distance*distance*.036;
+      pan = .86*(Math.cos(camera.yaw)*dx+Math.sin(camera.yaw)*dz)/Math.max(1,distance);
+    }
+
+    const source = context.createBufferSource();
+    source.buffer = samples[kind][variation];
+    const volume = context.createGain();
+    volume.gain.value = level;
+    source.connect(volume);
+    const stereo = context.createStereoPanner?.();
+    if (stereo) {
+      stereo.pan.value = pan;
+      volume.connect(stereo).connect(output);
+    } else volume.connect(output);
+    source.onended = () => {
+      source.disconnect();
+      volume.disconnect();
+      stereo?.disconnect();
+    };
+    source.start();
+  }
+
+  function reset() {
+    events = [];
+    next = 0;
+    foot = 0;
+    distanceWalked = .53;
+    const duration = core.game_duration();
+    for (let seat=0;seat<desks.length;seat++) {
+      for (let time=.36+seat*.91%9, i=0;time<duration;time+=9+(seat*7+i*11)%14,i++) {
+        events.push({time,seat,kind:'pencil',variation:(seat+i)%3});
+      }
+      for (let time=3.2+seat*2.71%23, i=0;time<duration;time+=26+(seat*3+i*7)%19,i++) {
+        events.push({time,seat,kind:'page',variation:(seat+i)%3});
+      }
+      if (!core.game_note_sender(seat)) continue;
+      const receiver = core.game_note_partner(seat);
+      for (let i=0;;i++) {
+        const time = core.game_event(seat,i);
+        if (time<0) break;
+        events.push({time:time+noteCatchTime,seat:receiver,kind:'note',variation:0,sender:seat});
+      }
+    }
+    events.sort((a,b)=>a.time-b.time);
+  }
+
+  function update(elapsed, camera) {
+    while (next<events.length && events[next].time<=elapsed) {
+      const {time,seat,kind,variation,sender} = events[next++];
+      if (elapsed-time>.24 || core.game_is_caught(sender ?? seat)) continue;
+      if (kind==='pencil' && (core.game_action_time(seat)>=0 || core.game_glance_time(seat)>=0)) continue;
+      play(kind,variation,desks[seat],camera);
+    }
+  }
+
+  function walk(travelled) {
+    distanceWalked += travelled;
+    if (distanceWalked<stride) return;
+    distanceWalked %= stride;
+    play('step',foot);
+    foot = 1-foot;
+  }
+
+  function burst(seat,camera) {
+    const [x,z] = desks[seat];
+    play('burst',0,[x,z-.62],camera,masterGain);
+  }
+
+  function bell(end) {
+    const level = (mix.bell ?? 100)/100;
+    if (!masterGain || !level) return;
+    const tones = end ? [659,523,392] : [523,659];
+    tones.forEach((tone,i) => {
+      const oscillator = context.createOscillator();
+      const volume = context.createGain();
+      const start = context.currentTime+i*.14;
+      oscillator.frequency.value = tone;
+      volume.gain.setValueAtTime(.0001,start);
+      volume.gain.exponentialRampToValueAtTime(Math.max(.0001,.075*level),start+.025);
+      volume.gain.exponentialRampToValueAtTime(.0001,start+.36);
+      oscillator.connect(volume).connect(masterGain);
+      oscillator.start(start);
+      oscillator.stop(start+.37);
+    });
+  }
+
+  return {setActive,reset,update,walk,bell,burst,updateMix};
+}
+
+const $ = id => document.getElementById(id);
+const ui = Object.fromEntries(['room','intro','start','load-error','hud','health','caught-count','reticle',
+  'zoom-frame','zoom-key','toast','overlay','continue','results','results-title','retry','accuse-hint',
+  'intro-rules','help','help-rules','settings','help-close','stats','suspect-list','result-grid','result-detail'].map(id => [id,$(id)]));
+
+const methods = ['일반 학생','미세 카메라 사용','AI 답안 사용','쪽지 교환'];
+const outcomes = ['일반 학생','적발 성공','미적발','오인 적발'];
+const outcomeStyles = ['clean','caught','missed','wrong'];
+const endTitles = ['', '시험 시간이 끝났습니다','소송 당했습니다','부정행위자 전원 적발'];
+const settingDefinitions = [
+  {id:'sensitivity',label:'마우스 감도',min:40,max:200},
+  {id:'master',label:'전체 음량',min:0,max:100},
+  {id:'step',label:'감독관 발소리',min:0,max:100},
+  {id:'pencil',label:'연필 긁는 소리',min:0,max:100},
+  {id:'page',label:'종이 넘기는 소리',min:0,max:100},
+  {id:'note',label:'쪽지 닿는 소리',min:0,max:100},
+  {id:'burst',label:'적발 효과음',min:0,max:100},
+  {id:'bell',label:'시작·종료 종소리',min:0,max:100},
+];
+const settingsKey = 'exam-invigilator-settings-v1';
+const outOfHealth = 2;
+const pad = n => String(n).padStart(2,'0');
+const clock = s => pad(Math.floor(s/60))+':'+pad(s%60);
+const seatName = i => pad(i+1)+'번';
+
+function loadSettings() {
+  const values = Object.fromEntries(settingDefinitions.map(({id})=>[id,100]));
+  try {
+    const saved = JSON.parse(localStorage.getItem(settingsKey));
+    for (const {id,min,max} of settingDefinitions) {
+      if (Number.isFinite(saved?.[id])) values[id] = Math.min(max,Math.max(min,saved[id]));
+    }
+  } catch {
+    // Settings remain available for this session when storage is disabled.
+  }
+  return values;
+}
+
+async function boot() {
+  const bytes = Uint8Array.from(atob(wasm64),ch=>ch.charCodeAt(0));
+  const {instance} = await WebAssembly.instantiate(bytes);
+  const core = instance.exports;
+  const settings = loadSettings();
+  const sound = createClassroomAudio(core,settings);
+  const classroom = createClassroom(ui.room,core,sound.burst);
+  const count = core.game_seat_count(), duration = core.game_duration();
+  const maxHealth = core.game_max_health(), suspects = core.game_suspect_count();
+  const keys = new Set();
+  const movementKeys = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
+  let phase = 'intro', scenario = 0;
+  let zoom = false, yaw = 0, pitch = -.17, aimedSeat = -1;
+  let frameTime = 0, toastUntil = 0, endingLeft = 0;
+  let pendingPointerLock = false, wasLocked = false;
+
+  ui['help-rules'].innerHTML = ui['intro-rules'].innerHTML;
+  ui.settings.innerHTML = settingDefinitions.map(({id,label,min,max})=>`
+    <label class="setting-row">
+      <span>${label}</span>
+      <input type="range" id="adjust-${id}" data-setting="${id}" min="${min}" max="${max}" step="1" value="${settings[id]}">
+      <output id="value-${id}" for="adjust-${id}">${settings[id]}%</output>
+    </label>`).join('');
+  ui.settings.addEventListener('input',event => {
+    const id = event.target.dataset.setting;
+    const definition = settingDefinitions.find(setting=>setting.id===id);
+    const value = Number(event.target.value);
+    if (!definition || !Number.isFinite(value)) return;
+    settings[id] = Math.min(definition.max,Math.max(definition.min,value));
+    $('value-'+id).textContent = settings[id]+'%';
+    if (id==='master') sound.updateMix();
+    try { localStorage.setItem(settingsKey,JSON.stringify(settings)); } catch {}
+  });
+
+  function toast(message) {
+    ui.toast.textContent = message;
+    ui.toast.hidden = false;
+    toastUntil = performance.now()+1750;
+  }
+
+  function updateStatus() {
+    const health = core.game_health();
+    ui.health.innerHTML = Array.from({length:maxHealth},(_,i)=>
+      `<span aria-hidden="true"${i<health ? '' : ' class="spent"'}>♥︎</span>`).join('');
+    ui.health.setAttribute('aria-label','체력 '+health+' / '+maxHealth);
+    ui['caught-count'].textContent = core.game_caught_count()+' / '+suspects;
+  }
+
+  function releasePointer() {
+    wasLocked = false;
+    if (document.pointerLockElement===ui.room) document.exitPointerLock();
+  }
+
+  function capturePointer() {
+    if (phase!=='running' || !ui.room.requestPointerLock || document.pointerLockElement || pendingPointerLock) return;
+    pendingPointerLock = true;
+    try {
+      ui.room.requestPointerLock()?.catch(() => { pendingPointerLock = false; });
+    } catch {
+      pendingPointerLock = false;
+    }
+  }
+
+  function setZoom(enabled) {
+    zoom = enabled;
+    ui['zoom-frame'].hidden = !zoom;
+    ui['zoom-key'].classList.toggle('active',zoom);
+  }
+
+  function start() {
+    core.game_reset(scenario);
+    classroom.resetEffects();
+    sound.reset();
+    sound.setActive(true);
+    phase = 'running';
+    frameTime = 0;
+    yaw = 0;
+    pitch = -.17;
+    keys.clear();
+    setZoom(false);
+    updateStatus();
+    clearAim();
+    ui.toast.hidden = true;
+    ui.intro.hidden = true;
+    ui.results.hidden = true;
+    ui.overlay.hidden = true;
+    ui.help.hidden = true;
+    ui.hud.hidden = false;
+    ui.room.tabIndex = -1;
+    ui.room.focus();
+    capturePointer();
+    sound.bell(false);
+  }
+
+  function pause(mode='paused') {
+    if (phase!=='running') return;
+    phase = mode;
+    keys.clear();
+    clearAim();
+    sound.setActive(false);
+    releasePointer();
+    ui.overlay.hidden = mode!=='paused';
+    ui.help.hidden = mode!=='help';
+    (mode==='help' ? ui['help-close'] : ui.continue).focus();
+  }
+
+  function resume(relock) {
+    if (phase!=='paused' && phase!=='help') return;
+    phase = 'running';
+    frameTime = 0;
+    sound.setActive(true);
+    ui.overlay.hidden = true;
+    ui.help.hidden = true;
+    ui.room.focus();
+    if (relock) capturePointer();
+  }
+
+  function resultDetail(seat, focus=false) {
+    const method = core.game_method(seat), outcome = core.game_outcome(seat);
+    const times = [];
+    for (let event=0;method;event++) {
+      const time = core.game_event(seat,event);
+      if (time<0) break;
+      times.push(clock(time));
+    }
+    const partner = core.game_note_partner(seat);
+    const exchange = partner>=0 ? `${seatName(partner)} 좌석${core.game_note_sender(seat) ? '에 쪽지를 던짐' : '에서 온 쪽지를 받음'}` : '';
+    const buttons = ui['result-grid'].querySelectorAll('button');
+    buttons.forEach((button,i)=>button.setAttribute('aria-pressed',String(i===seat)));
+    if (focus) buttons[seat]?.focus();
+    ui['result-detail'].innerHTML = `<h3>${seatName(seat)} 좌석 · ${outcomes[outcome]}</h3>
+      <dl><dt>실제 행동</dt><dd>${methods[method]}</dd>${times.length ?
+        `<dt>예정 시각</dt><dd>시험 시작 후 ${times.join(' · ')}</dd>` : ''}
+      ${exchange ? `<dt>쪽지 교환</dt><dd>${exchange}</dd>` : ''}</dl>`;
+  }
+
+  function finish(reason) {
+    phase = 'finished';
+    sound.setActive(false);
+    releasePointer();
+    keys.clear();
+    ui.overlay.hidden = true;
+    ui.help.hidden = true;
+    clearAim();
+    ui.hud.hidden = true;
+    ui.results.hidden = false;
+    ui['results-title'].textContent = endTitles[reason];
+    const cheaters = [];
+    let missedSeat = -1;
+    const seats = [];
+    for (let i=0;i<count;i++) {
+      const outcome = core.game_outcome(i);
+      if (outcome===1 || outcome===2) cheaters.push(i);
+      if (outcome===2 && missedSeat<0) missedSeat = i;
+      seats.push(`<button type="button" class="${outcomeStyles[outcome]}" data-result-seat="${i}"
+        aria-label="${seatName(i)} 좌석, ${outcomes[outcome]}">${pad(i+1)}</button>`);
+    }
+    const caught = core.game_caught_count(), health = core.game_health();
+    ui.stats.innerHTML = [['적발',caught+' / '+suspects],['놓친 학생',(suspects-caught)+'명'],
+      ['오인 적발',(maxHealth-health)+'건'],['남은 체력',health+' / '+maxHealth]].map(([label,value]) =>
+        `<div><span class="small-label">${label}</span><strong>${value}</strong></div>`).join('');
+    ui['suspect-list'].textContent = '부정행위 좌석  '+cheaters.map(seatName).join(' · ');
+    ui['result-grid'].innerHTML = seats.join('');
+    resultDetail(missedSeat>=0 ? missedSeat : (cheaters[0] ?? 0));
+    ui['results-title'].focus();
+    sound.bell(true);
+  }
+
+  function accuse() {
+    const seat = core.game_aim(...classroom.direction(yaw,pitch));
+    if (seat<0) {
+      toast('학생을 조준한 뒤 F를 누르세요.');
+      return;
+    }
+    const decision = core.game_accuse(seat);
+    if (!decision) {
+      toast(seatName(seat)+' 학생은 이미 확인했어요.');
+      return;
+    }
+    updateStatus();
+    if (decision===1) {
+      classroom.catchStudent(seat);
+      toast(seatName(seat)+' 학생 적발');
+    } else {
+      classroom.reactToWrongAccusation(seat);
+      toast(seatName(seat)+' 학생은 일반 학생입니다 · 체력 −1');
+    }
+    const reason = core.game_status();
+    if (reason) startEnding(reason);
+  }
+
+  function startEnding(reason) {
+    phase = 'ending';
+    endingLeft = reason===outOfHealth ? 1.50 : 0;
+    keys.clear();
+    releasePointer();
+    sound.setActive(false);
+    clearAim();
+  }
+
+  function rotate(dx, dy) {
+    yaw = (yaw+dx)%(Math.PI*2);
+    pitch = Math.max(-1.40,Math.min(1.40,pitch+dy));
+  }
+
+  function clearAim() {
+    aimedSeat = -1;
+    ui.reticle.classList.toggle('ready',false);
+    ui['accuse-hint'].hidden = true;
+  }
+
+  function updateWalking(dt) {
+    const right = Number(keys.has('KeyD'))-Number(keys.has('KeyA'));
+    const forward = Number(keys.has('KeyW'))-Number(keys.has('KeyS'));
+    const norm = Math.max(1,Math.hypot(right,forward));
+    const sin = Math.sin(yaw), cos = Math.cos(yaw);
+    const x = core.game_x(), z = core.game_z();
+    core.game_move((right*cos+forward*sin)/norm,(right*sin-forward*cos)/norm,dt);
+    sound.walk(Math.hypot(core.game_x()-x,core.game_z()-z));
+    rotate((Number(keys.has('ArrowRight'))-Number(keys.has('ArrowLeft')))*dt*1.75,
+      (Number(keys.has('ArrowUp'))-Number(keys.has('ArrowDown')))*dt*1.35);
+    aimedSeat = core.game_aim(...classroom.direction(yaw,pitch));
+    ui.reticle.classList.toggle('ready',aimedSeat>=0);
+    ui['accuse-hint'].hidden = aimedSeat<0 || !core.game_near(aimedSeat) || core.game_outcome(aimedSeat)===3;
+  }
+
+  function frame(now) {
+    const dt = frameTime ? Math.max(0,(now-frameTime)/1000) : 0;
+    frameTime = now;
+    if (phase==='running') {
+      core.game_tick(dt);
+      const reason = core.game_status();
+      if (reason) startEnding(reason);
+      else updateWalking(Math.min(.05,dt));
+    } else if (phase==='ending') {
+      endingLeft -= dt;
+    }
+    if (now>toastUntil) ui.toast.hidden = true;
+    const introCamera = {x:3.72,y:1.54,z:5.01,yaw:-.43,pitch:-.12};
+    const camera = phase==='intro' ? introCamera : {x:core.game_x(),y:core.game_y(),z:core.game_z(),yaw,pitch};
+    const remaining = core.game_remaining(), elapsed = duration-remaining;
+    if (phase==='running') sound.update(elapsed,camera);
+    const effectsPaused = phase==='paused' || phase==='help';
+    classroom.draw(camera,elapsed,remaining,phase!=='intro'&&zoom,phase!=='intro',effectsPaused ? 0 : dt,aimedSeat);
+    if (phase==='ending' && endingLeft<=0 && !classroom.hasCatchEffects()) finish(core.game_status());
+    requestAnimationFrame(frame);
+  }
+
+  ui.start.addEventListener('click',start);
+  ui.retry.addEventListener('click',() => { scenario=(scenario+1)%core.game_scenarios(); start(); });
+  ui.continue.addEventListener('click',()=>resume(true));
+  ui['help-close'].addEventListener('click',()=>resume(true));
+  ui['result-grid'].addEventListener('click',event => {
+    const button = event.target.closest('[data-result-seat]');
+    if (button) resultDetail(Number(button.dataset.resultSeat),true);
+  });
+  document.addEventListener('pointerlockchange',() => {
+    pendingPointerLock = false;
+    if (document.pointerLockElement===ui.room) {
+      if (phase==='running') wasLocked = true;
+      else releasePointer();
+    } else if (wasLocked) {
+      wasLocked = false;
+      pause();
+    }
+  });
+  document.addEventListener('pointerlockerror',()=>{ pendingPointerLock = false; });
+  document.addEventListener('visibilitychange',()=>{ if (document.hidden) pause(); });
+  window.addEventListener('blur',()=>pause());
+  ui.room.addEventListener('mousedown',event => {
+    if (phase!=='running') return;
+    if (event.button===2) {
+      event.preventDefault();
+      setZoom(!zoom);
+    }
+    if (event.button===0 || event.button===2) capturePointer();
+  });
+  ui.room.addEventListener('contextmenu',event=>{ if (phase==='running') event.preventDefault(); });
+  document.addEventListener('mousemove',event => {
+    if (phase==='running' && (document.pointerLockElement===ui.room || event.target===ui.room)) {
+      const sensitivity = .0025*settings.sensitivity/100;
+      rotate(event.movementX*sensitivity,-event.movementY*sensitivity);
+    }
+  });
+  document.addEventListener('keydown',event => {
+    if (event.code==='KeyT' && (phase==='running' || phase==='help')) {
+      event.preventDefault();
+      if (!event.repeat) {
+        if (phase==='help') resume(true);
+        else pause('help');
+      }
+      return;
+    }
+    if (event.code==='Escape' && (phase==='running' || phase==='paused' || phase==='help')) {
+      event.preventDefault();
+      if (!event.repeat) {
+        if (phase!=='running') resume(false);
+        else pause();
+      }
+      return;
+    }
+    if (phase!=='running') return;
+    if (movementKeys.includes(event.code)) {
+      event.preventDefault();
+      keys.add(event.code);
+      if (!event.repeat) capturePointer();
+    }
+    if (event.code==='KeyF' && !event.repeat) accuse();
+  });
+  document.addEventListener('keyup',event=>keys.delete(event.code));
+
+  ui.start.disabled = false;
+  requestAnimationFrame(frame);
+}
+
+boot().catch(error => {
+  console.error(error);
+  ui['load-error'].hidden = false;
+  ui['load-error'].textContent = error.message;
+});
+
+  </script>
+</body>
+</html>
