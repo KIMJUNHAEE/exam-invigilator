@@ -77,6 +77,11 @@ kbd {
   font: 600 .74rem "Cascadia Mono", Consolas, monospace;
 }
 .start { font-size: 1.04rem; padding: 12px 22px; }
+.stage-select { display: flex; flex-wrap: wrap; gap: 10px; }
+.stamina-label { margin-top: 8px; }
+.stamina { margin-top: 5px; height: 7px; min-width: 110px; background: #2a3a34; border-radius: 4px; overflow: hidden; }
+.stamina span { display: block; height: 100%; width: 100%; background: #8fcfa6; }
+.stamina.winded span { background: #d98a69; }
 #load-error { margin-top: 12px; color: #ffbc9f; }
 .hud { position: fixed; inset: 0; pointer-events: none; }
 .hud-top { display: flex; justify-content: space-between; margin: 22px clamp(12px, 3.2vw, 42px); }
@@ -186,12 +191,14 @@ button.clean { background: #293c34; color: #c6d4cc; }
           <div id="intro-rules" class="guide-rules">
             <ul>
               <li>제한 시간 안에 학생의 행동을 관찰하고 부정행위자를 찾아내세요.</li>
-              <li>1단계는 학생 20명 중 4명, 3분입니다. 4명을 모두 적발하면 2단계(학생 40명 중 8명, 5분)로 넘어갑니다.</li>
+              <li>1단계 교실은 학생 20명 중 4명(3분), 2단계 교실은 40명 중 8명(5분), 3단계 대강의실은 60명 중 12명(8분)입니다. 부정행위자를 모두 적발하면 다음 단계로 넘어갑니다.</li>
+              <li><kbd>Shift</kbd>를 누르고 이동하면 스태미나를 써서 달립니다. 스태미나가 바닥나면 조금 회복될 때까지 달릴 수 없습니다.</li>
               <li>의심하는 자리의 책상이나 학생을 조준해 <kbd>F</kbd>로 적발하세요. 일반 학생을 지목하면 하트를 하나 잃습니다.</li>
               <li>전원 적발, 체력 소진, 시간 종료 시 실제 부정행위자 좌석이 공개됩니다.</li>
             </ul>
             <div class="controls">
               <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 이동</span>
+              <span><kbd>Shift</kbd> 달리기</span>
               <span><kbd>마우스</kbd> 시점</span>
               <span><kbd>우클릭</kbd> 확대경</span>
               <span><kbd>T</kbd> 게임 방법·설정</span>
@@ -199,7 +206,11 @@ button.clean { background: #293c34; color: #c6d4cc; }
             </div>
           </div>
         </section>
-        <button class="primary start" id="start" disabled>시험 시작 <span aria-hidden="true">→</span></button>
+        <div class="stage-select" role="group" aria-label="단계 선택">
+          <button class="primary start" data-stage="0" disabled>1단계 시작 <span aria-hidden="true">→</span></button>
+          <button class="primary start" data-stage="1" disabled>2단계 시작 <span aria-hidden="true">→</span></button>
+          <button class="primary start" data-stage="2" disabled>3단계 시작 <span aria-hidden="true">→</span></button>
+        </div>
         <p id="load-error" role="alert" hidden></p>
       </div>
     </section>
@@ -209,6 +220,8 @@ button.clean { background: #293c34; color: #c6d4cc; }
         <div class="health-chip">
           <span class="small-label">체력</span>
           <div id="health" class="health-slots" role="img" aria-label="체력 3 / 3"></div>
+          <span class="small-label stamina-label">스태미나</span>
+          <div id="stamina" class="stamina" role="meter" aria-label="스태미나" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span id="stamina-fill"></span></div>
         </div>
         <div class="stage-chip">
           <span class="small-label">단계</span>
@@ -224,6 +237,7 @@ button.clean { background: #293c34; color: #c6d4cc; }
       <div id="zoom-frame" class="zoom-frame" hidden></div>
       <div id="toast" class="toast" role="status" hidden></div>
       <div class="hud-bottom">
+        <span><kbd>Shift</kbd> 달리기</span>
         <span id="zoom-key"><kbd>우클릭</kbd> 확대경</span>
         <span><kbd>T</kbd> 게임 방법·설정</span>
         <span><kbd>Esc</kbd> 일시정지</span>
@@ -250,7 +264,10 @@ button.clean { background: #293c34; color: #c6d4cc; }
             <div id="settings" class="settings"></div>
           </section>
         </div>
-        <div class="actions"><button class="primary" id="help-close">게임으로 돌아가기</button></div>
+        <div class="actions">
+          <button id="next-stage">다음 단계로 이동 <span aria-hidden="true">→</span></button>
+          <button class="primary" id="help-close">게임으로 돌아가기</button>
+        </div>
       </div>
     </section>
 
@@ -280,7 +297,7 @@ button.clean { background: #293c34; color: #c6d4cc; }
   </main>
   <script>
 'use strict';
-const wasm64 = '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';
+const wasm64 = 'AGFzbQEAAAABQgxgAn9/AGABfQBgBH19fX0AYAJ9fQF/YAN9fX0Bf2ACf38BfWABfwF/YAABf2ABfwF9YAJ/fwF/YAABfWACfX0BfQMvLgABAgMEBQYGBwcHBwcGBgYICAYGBgkKCgoKCggICAgIBwcHBwoKCgoICgoLBwcEBQFwAQEBBQMBAAIGCAF/AUGAgAQLB9YFLQZtZW1vcnkCAApnYW1lX3Jlc2V0AAAJZ2FtZV90aWNrAAEJZ2FtZV9tb3ZlAAIIZ2FtZV9haW0ABAlnYW1lX25lYXIABgtnYW1lX2FjY3VzZQAHC2dhbWVfc3RhdHVzAAgLZ2FtZV9oZWFsdGgACQ9nYW1lX21heF9oZWFsdGgAChFnYW1lX2NhdWdodF9jb3VudAALEmdhbWVfc3VzcGVjdF9jb3VudAAMDGdhbWVfb3V0Y29tZQANDmdhbWVfaXNfY2F1Z2h0AA4LZ2FtZV9tZXRob2QADxBnYW1lX2FjdGlvbl90aW1lABAQZ2FtZV9nbGFuY2VfdGltZQARE2dhbWVfZ2xhbmNlX2NlaWxpbmcAEhFnYW1lX25vdGVfcGFydG5lcgATEGdhbWVfbm90ZV9zZW5kZXIAFApnYW1lX2V2ZW50ABUNZ2FtZV9kdXJhdGlvbgAWDmdhbWVfcmVtYWluaW5nABcGZ2FtZV94ABgGZ2FtZV95ABkGZ2FtZV96ABoLZ2FtZV9zZWF0X3gAGwtnYW1lX3NlYXRfegAcDWdhbWVfc2VhdF95YXcAHQ5nYW1lX3NlYXRfbGlmdAAeFGdhbWVfc2VhdF9oYWxmX3dpZHRoAB8PZ2FtZV9zZWF0X2NvdW50ACAMZ2FtZV9jb2x1bW5zACEJZ2FtZV9yb3dzACILZ2FtZV9sYXlvdXQAIxFnYW1lX3NlYXRfc3BhY2luZwAkFGdhbWVfcm9vbV9oYWxmX3dpZHRoACUQZ2FtZV9yb29tX2JhY2tfegAmEmdhbWVfaGFsbF9jZW50ZXJfegAnEGdhbWVfaGFsbF9yYWRpdXMAKBJnYW1lX2hhbGxfcm93X3N0ZXAAKRBnYW1lX3RpZXJfaGVpZ2h0ACoRZ2FtZV9mbG9vcl9oZWlnaHQAKwpnYW1lX3N0YWdlACwQZ2FtZV9zdGFnZV9jb3VudAAtCowzLrASCwd/A30BfwJ9AX8CfQR/A30C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';
 // Seat order is stable between rounds. The scenario assigns misconduct separately.
 const studentProfiles = [
   // Hair color, shirt, trim, trousers, skin, eyewear.
@@ -364,8 +381,25 @@ const noteCatchTime = noteReleaseTime+.24;
 
 const caughtSurpriseDuration = .85;
 
-function createStudentActors(core, desks, primitive) {
+// frames[seat] turns and lifts a student around its desk center (null keeps the seat axis-aligned on the floor).
+function createStudentActors(core, desks, drawPrimitive, frames=[]) {
   const sides = [-1,1];
+  let frame = null;
+
+  function toWorld(f, p) {
+    const dx = p[0]-f.x, dz = p[2]-f.z;
+    return [f.x+f.c*dx+f.s*dz,p[1]+f.lift,f.z-f.s*dx+f.c*dz];
+  }
+
+  function toLocal(f, p) {
+    const dx = p[0]-f.x, dz = p[2]-f.z;
+    return [f.x+f.c*dx-f.s*dz,p[1]-f.lift,f.z+f.s*dx+f.c*dz];
+  }
+
+  function primitive(shape, center, size, hex, pitch=0, yaw=0, roll=0, material=0) {
+    if (frame) drawPrimitive(shape,toWorld(frame,center),size,hex,pitch,yaw+frame.yaw,roll,material);
+    else drawPrimitive(shape,center,size,hex,pitch,yaw,roll,material);
+  }
   const outfits = [
     // Garment shape, chest treatment, short sleeves.
     ['blazer','tie'], ['hoodie','pouch'], ['cardigan','buttons'], ['tee','stripes',true],
@@ -393,7 +427,8 @@ function createStudentActors(core, desks, primitive) {
 
   function reactToWrongAccusation(seat) {
     const [x,z] = desks[seat];
-    const yaw = Math.atan2(core.game_x()-x,core.game_z()-(z-.704));
+    const player = frames[seat] ? toLocal(frames[seat],[core.game_x(),0,core.game_z()]) : [core.game_x(),0,core.game_z()];
+    const yaw = Math.atan2(player[0]-x,player[2]-(z-.704));
     reactions[seat] = {age:0,yaw,side:yaw<0 ? -1 : 1};
   }
 
@@ -790,7 +825,8 @@ function createStudentActors(core, desks, primitive) {
     const {time,partner} = motion;
     if (time<release-.26 || time>=catchTime+1.28) return;
     const [rx,rz] = desks[partner];
-    const destination = hands[partner] ?? [rx+.16,.791,rz-.09];
+    const resting = [rx+.16,.791,rz-.09];
+    const destination = hands[partner] ?? (frames[partner] ? toWorld(frames[partner],resting) : resting);
     if (time<release) {
       paper(paperAt(hands[index]),-.10,.24,0);
     } else if (time<catchTime) {
@@ -811,8 +847,19 @@ function createStudentActors(core, desks, primitive) {
       if (core.game_is_caught(index) && (age===undefined || age>=caughtSurpriseDuration)) return null;
       return animate(index,elapsed,animated);
     });
-    const hands = motions.map((motion,index) => motion ? student(index,elapsed,motion,
-      reactionAt(index,effectDelta,camera),camera,catches.get(index)) : null);
+    const hands = motions.map((motion,index) => {
+      if (!motion) return null;
+      frame = frames[index] ?? null;
+      let view = camera;
+      if (frame) {
+        const [x,y,z] = toLocal(frame,[camera.x,camera.y,camera.z]);
+        view = {...camera,x,y,z};
+      }
+      const hand = student(index,elapsed,motion,reactionAt(index,effectDelta,view),view,catches.get(index));
+      const world = hand && frame ? toWorld(frame,hand) : hand;
+      frame = null;
+      return world;
+    });
     for (const [index,motion] of motions.entries()) {
       if (!motion || motion.partner<0 || catches.has(index)) continue;
       if (motion.sender) exchange(index,motion,hands);
@@ -1061,23 +1108,52 @@ function createClassroom(canvas, core, onBurst) {
   const metal = 0x677775;
   const wall = 0xd1cbb6;
   const trim = 0x67796f;
-  const clockY = 2.59;
-  let desks = [], students, staticLength = 0, floorSeats = [0,1,0,1];
+  let clockY = 2.59, clockWall = -6.23;
+  let desks = [], seatFrames = [], students, staticLength = 0, floorSeats = [0,1,0,1];
 
-  // Rebuilds the room for the current stage. The room keeps its depth and grows sideways with the seat columns.
+  // Places a box in a seat's frame: local +z faces the board, y is measured from the seat's floor.
+  function seatBox(seat, lx, ly, lz, w, h, d, hex, material=0, pitch=0, yaw=0) {
+    const f = seatFrames[seat];
+    box(f.x+f.c*lx+f.s*lz,f.lift+ly,f.z-f.s*lx+f.c*lz,w,h,d,hex,material,pitch,f.yaw+yaw);
+  }
+
+  function seatPoint(seat, lx, ly, lz) {
+    const f = seatFrames[seat];
+    return [f.x+f.c*lx+f.s*lz,f.lift+ly,f.z-f.s*lx+f.c*lz];
+  }
+
+  function drawClockFrame() {
+    box(0,clockY,clockWall+.125,2.18,.68,.13,0x38443d);
+    box(0,clockY,clockWall+.201,2.04,.53,.025,0x142621);
+    for (const x of [-1.025,1.025]) box(x,clockY,clockWall+.219,.036,.036,.016,0xa4a393);
+  }
+
+  // Rebuilds the room for the current stage.
   function buildRoom() {
     meshes.box.cursor = 0;
+    desks = Array.from({length: core.game_seat_count()}, (_, i) => [core.game_seat_x(i), core.game_seat_z(i)]);
+    seatFrames = desks.map(([x,z],i) => {
+      const yaw = core.game_seat_yaw(i);
+      return {x,z,yaw,c:Math.cos(yaw),s:Math.sin(yaw),lift:core.game_seat_lift(i)};
+    });
+    if (core.game_layout()===1) buildHall();
+    else buildClassroom();
+    staticLength = meshes.box.cursor;
+    students = createStudentActors(core,desks,primitive,seatFrames.map(f => f.yaw || f.lift ? f : null));
+  }
+
+  // Classroom stages keep their depth and grow sideways with the seat columns.
+  function buildClassroom() {
     const half = core.game_room_half_width();
     const width = half*2+.09;
-    desks = Array.from({length: core.game_seat_count()}, (_, i) => [core.game_seat_x(i), core.game_seat_z(i)]);
+    clockY = 2.59;
+    clockWall = -6.23;
     box(0,-.09,0,width,.17,12.56,0xdddcd1,1);
     box(0,3.18,0,width,.10,12.56,0xd3cbbb);
     box(0,1.56,6.23,width,3.12,.15,wall);
     box(half,1.56,0,.14,3.12,12.56,wall);
     box(0,1.56,-6.23,width,3.12,.15,0xb6b3a2);
-    box(0,clockY,-6.105,2.18,.68,.13,0x38443d);
-    box(0,clockY,-6.029,2.04,.53,.025,0x142621);
-    for (const x of [-1.025,1.025]) box(x,clockY,-6.011,.036,.036,.016,0xa4a393);
+    drawClockFrame();
     box(-half,.46,0,.14,.92,12.56,wall);
     box(-half,2.97,0,.14,.29,12.56,wall);
     box(.03-half,1.52,5.39,.14,2.45,1.68,wall);
@@ -1141,10 +1217,120 @@ function createClassroom(canvas, core, onBurst) {
       box(x+.28,.82,z-.07,.158,.053,.23,0x6f7d78,0,0,.08);
       box(x+.13,.809,z+.18,.017,.015,.23,0x354e48,0,0,-.16);
     }
-    staticLength = meshes.box.cursor;
-    students = createStudentActors(core,desks,primitive);
     const spacing = core.game_seat_spacing(), first = desks[0][0];
     floorSeats = [spacing*.5-first, spacing, .725-first, half];
+  }
+
+  // Lecture hall: curved bench rows on tiers that rise toward the back, split into sections by stepped aisles.
+  function buildHall() {
+    const half = core.game_room_half_width(), back = core.game_room_back_z(), front = 6.23;
+    const depth = front-back, middle = (front+back)/2, width = half*2+.09, ceiling = 4.45;
+    const centerZ = core.game_hall_center_z(), rows = core.game_rows(), columns = core.game_columns();
+    const tier = core.game_tier_height(), radius = row => core.game_hall_radius(row);
+    const top = (rows-1)*tier;
+    const white = 0xe8e5dd, slab = 0xd3cec1, tile = 0xe3ddcf, nosing = 0xa9a294;
+    floorSeats = [0,1,0,half];
+    clockY = top+2.05;
+    clockWall = back;
+
+    box(0,-.09,middle,width,.17,depth+.2,tile,1);
+    box(0,ceiling,middle,width,.10,depth+.2,0xedeae3);
+    box(0,ceiling/2,front,width,ceiling,.15,white);
+    box(0,ceiling/2,back,width,ceiling,.15,0xe2dfd6);
+    for (const x of [-half,half]) box(x,ceiling/2,middle,.14,ceiling,depth,white);
+    for (const x of [.08-half,half-.08]) box(x,.06,middle,.05,.12,depth-.1,0x46443e);
+    box(0,.06,front-.08,width-.12,.12,.05,0x46443e);
+    drawClockFrame();
+
+    // A ring piece of the floor between two radii, standing on the ground up to the given height.
+    function ringPiece(angle, inner, outer, span, height) {
+      const mid = (inner+outer)/2, x = mid*Math.sin(angle), z = centerZ-mid*Math.cos(angle);
+      box(x,height/2,z,span,height,outer-inner,slab,0,0,-angle);
+      box(x,height+.006,z,span,.012,outer-inner,tile,1,0,-angle);
+      box(inner*Math.sin(angle),height-.004,centerZ-(inner+.025)*Math.cos(angle),span,.03,.05,nosing,0,0,-angle);
+    }
+
+    const far = Math.hypot(half+.5,centerZ-back)+.5, pieces = 30;
+    for (let t=1;t<rows;t++) {
+      const inner = radius(t)-.5, outer = t<rows-1 ? radius(t+1)-.5 : far;
+      const reach = Math.asin(Math.min(.99,(half+.4)/inner));
+      for (let i=0;i<pieces;i++) {
+        ringPiece(((i+.5)/pieces*2-1)*reach,inner,outer,2*reach/pieces*outer*1.03,t*tier);
+      }
+    }
+
+    // Half-height steps in the aisles between sections and beside the outer seats.
+    const angles = Array.from({length:columns},(_,c) => -core.game_seat_yaw(c));
+    const gaps = angles.slice(1).map((a,i) => a-angles[i]);
+    const normal = Math.min(...gaps);
+    const middleRadius = radius(0)+(rows-1)*core.game_hall_row_step()/2;
+    const aisles = [[angles[0]-normal/2-.5/middleRadius,.42/middleRadius],
+      [angles[columns-1]+normal/2+.5/middleRadius,.42/middleRadius]];
+    gaps.forEach((gap,i) => { if (gap>normal*1.5) aisles.push([(angles[i]+angles[i+1])/2,(gap-normal)/2]); });
+    for (let t=1;t<rows;t++) {
+      const inner = radius(t)-.5;
+      for (const [angle,halfAngle] of aisles) ringPiece(angle,inner-.5,inner,halfAngle*2*inner,(t-.5)*tier);
+    }
+
+    for (let seat=0;seat<desks.length;seat++) {
+      const hw = core.game_seat_half_width(seat), w = hw*2+.012;
+      seatBox(seat,0,.752,0,w,.06,.56,0xc89d68,2);
+      seatBox(seat,0,.50,.27,w,.46,.035,0xdcdedb);
+      for (let i=0;i<4;i++) seatBox(seat,0,.33+i*.11,.29,w,.014,.008,0xb3b7b4);
+      seatBox(seat,hw,.50,.29,.018,.47,.012,0x2c3033);
+      seatBox(seat,0,.21,.05,.07,.42,.07,metal);
+      seatBox(seat,0,.015,.05,.36,.03,.12,metal);
+      seatBox(seat,0,.44,-.69,.42,.06,.42,0x8b2c33);
+      seatBox(seat,0,.405,-.69,.44,.03,.44,0xc4925c,2);
+      seatBox(seat,0,.76,-.93,.44,.36,.045,0xc8955c,2,-.12);
+      seatBox(seat,0,.21,-.69,.05,.40,.05,metal);
+      seatBox(seat,0,.015,-.69,.30,.03,.30,metal);
+      seatBox(seat,-.09,.79,.04,.32,.014,.40,0xe8dcc5);
+      for (let line=0;line<6;line++) seatBox(seat,-.11,.799,-.06+line*.039,.205,.002,.005,0xa9ab9d);
+      seatBox(seat,.28,.81,-.07,.158,.053,.23,0x6f7d78,0,0,.08);
+      seatBox(seat,.13,.80,.18,.017,.015,.23,0x354e48,0,0,-.16);
+    }
+
+    // Front: projection screen, side whiteboards, lectern and an equipment rack by the inner window.
+    box(0,3.78,front-.13,6.6,.15,.17,0xd8d5cc);
+    box(0,2.45,front-.1,6.2,2.45,.03,0xf3f2ed);
+    for (const x of [-5.7,5.7]) {
+      box(x,1.62,front-.09,3.25,1.26,.05,0x9ea3a3);
+      box(x,1.62,front-.12,3.1,1.12,.03,0xf5f5f1);
+    }
+    box(-3.2,.55,4.9,.9,1.1,.7,0xcdd0d2);
+    box(-3.66,.55,4.9,.05,1.12,.73,0x2a2c2f);
+    box(-3.2,1.14,4.9,.96,.06,.74,0xdcdee0,0,.12);
+    box(-3.02,1.33,4.72,.014,.34,.014,0x222426,0,-.5);
+    box(.4-half,1.75,3.4,.05,1.8,3.0,0x8c918e);
+    box(.43-half,1.75,3.4,.03,1.62,2.84,0x6f8c97,3);
+    box(.45-half,.46,5.0,.5,.92,.48,0x5a5f60);
+    for (let i=0;i<4;i++) box(.71-half,.2+i*.2,5.0,.02,.12,.4,0x3d4142);
+
+    // Windows with roller blinds along the right wall and high on the back wall.
+    function windowAt(x, y, z, alongX) {
+      const size = alongX ? [1.45,1.5,.06] : [.06,1.5,1.45];
+      const inset = alongX ? [0,0,.04] : [-.04,0,0];
+      box(x,y,z,...size,0xa6895f);
+      box(x+inset[0],y,z+inset[2],alongX ? 1.27 : .04,1.32,alongX ? .04 : 1.27,0x9fc4da,3);
+      box(x+inset[0]*2,y+.55,z+inset[2]*2,alongX ? 1.38 : .08,.42,alongX ? .08 : 1.38,0xa99f86);
+      box(x+inset[0]*1.5,y,z+inset[2]*1.5,alongX ? .035 : .03,1.32,alongX ? .03 : .035,0xa6895f);
+    }
+    for (const z of [-5.4,-2.0,1.6]) windowAt(half-.08,core.game_floor_height(half-.6,z)+1.95,z,false);
+    for (const x of [-6.4,6.4]) windowAt(x,top+2.1,back+.09,true);
+
+    // Ceiling: light panels, two rows of downlights and air-conditioning cassettes.
+    for (const x of [-6.2,-2.1,2.1,6.2]) for (const z of [-4.6,-.9,2.8]) {
+      box(x,ceiling-.06,z,1.25,.04,.62,0xb9b6ad);
+      box(x,ceiling-.085,z,1.12,.012,.5,0xfdf6de,3);
+    }
+    for (let z=back+1.2;z<front-.8;z+=1.55) {
+      for (const x of [.9-half,half-.9]) box(x,ceiling-.055,z,.24,.02,.24,0xfffbe8,3);
+    }
+    for (const [x,z] of [[-4.2,.9],[4.2,-2.8]]) {
+      box(x,ceiling-.07,z,.95,.07,.95,0xd8d6cf);
+      box(x,ceiling-.105,z,.55,.01,.55,0x8f918d);
+    }
   }
   buildRoom();
   const catches = new Map();
@@ -1170,21 +1356,20 @@ function createClassroom(canvas, core, onBurst) {
     for (const [seat,age] of catches) {
       const t = age-caughtSurpriseDuration;
       if (t<0) continue;
-      const [originX, deskZ] = desks[seat];
-      const originZ = deskZ-.62;
+      const [originX, lift, originZ] = seatPoint(seat,0,0,-.62);
       const fade = 1-t/burstDuration;
       for (let i=0;i<26;i++) {
         const angle = i*2.399963;
         const speed = 1.2+(i%5)*.49;
         const size = (.079+(i%4)*.025)*fade;
         const x = originX+Math.cos(angle)*speed*t;
-        const y = Math.max(.07,1.08+((i%7)*.52-.65)*t-4.1*t*t);
+        const y = lift+Math.max(.07,1.08+((i%7)*.52-.65)*t-4.1*t*t);
         const z = originZ+Math.sin(angle)*speed*t;
         box(x,y,z,size*1.4,size,size*.76,burstColors[i%burstColors.length],3,t*9+i,t*13);
       }
       if (t<.17) {
         const size = .31*(1-t/.17)+.07;
-        primitive('spike',[originX,1.12,originZ],[size*2,size*2.3,size*2],0xfff0b1,t*6,0,0,3);
+        primitive('spike',[originX,lift+1.12,originZ],[size*2,size*2.3,size*2],0xfff0b1,t*6,0,0,3);
       }
     }
   }
@@ -1219,18 +1404,19 @@ function createClassroom(canvas, core, onBurst) {
       const enabled = digitSegments[digits[i]];
       for (const [index,[x,y,w,h]] of segmentLayout.entries()) {
         const on = enabled.includes('abcdefg'[index]);
-        box(digitCenters[i]+x,clockY+y,-6.007,w,h,.023,on ? light : 0x27342f,on ? 3 : 0);
+        box(digitCenters[i]+x,clockY+y,clockWall+.223,w,h,.023,on ? light : 0x27342f,on ? 3 : 0);
       }
     }
-    for (const y of [-.073,.073]) box(0,clockY+y,-6.007,.051,.051,.023,light,3);
+    for (const y of [-.073,.073]) box(0,clockY+y,clockWall+.223,.051,.051,.023,light,3);
   }
 
   function markDesk(seat) {
-    const [x,z] = desks[seat];
     const color = core.game_near(seat) ? 0xffd78e : 0xb9bfa4;
+    const hall = core.game_layout()===1;
+    const hx = core.game_seat_half_width(seat), hz = hall ? .28 : .36;
     for (const dx of [-1,1]) for (const dz of [-1,1]) {
-      box(x+dx*.448,.792,z+dz*.293,.022,.011,.125,color,3);
-      box(x+dx*.377,.792,z+dz*.348,.164,.011,.022,color,3);
+      seatBox(seat,dx*(hx-.052),.792,dz*(hz-.067),.022,.011,.125,color,3);
+      seatBox(seat,dx*(hx-.123),.792,dz*(hz-.012),.164,.011,.022,color,3);
     }
   }
 
@@ -1467,9 +1653,10 @@ function createClassroomAudio(core, mix={}) {
 }
 
 const $ = id => document.getElementById(id);
-const ui = Object.fromEntries(['room','intro','start','load-error','hud','health','stage-label','caught-count','reticle',
+const ui = Object.fromEntries(['room','intro','load-error','hud','health','stamina','stamina-fill','stage-label','caught-count','reticle',
   'zoom-frame','zoom-key','toast','overlay','continue','results','results-title','retry','accuse-hint',
-  'intro-rules','help','help-rules','settings','help-close','stats','suspect-list','result-grid','result-detail'].map(id => [id,$(id)]));
+  'intro-rules','help','help-rules','settings','help-close','next-stage','stats','suspect-list','result-grid','result-detail'].map(id => [id,$(id)]));
+const stageButtons = [...document.querySelectorAll('[data-stage]')];
 
 const methods = ['일반 학생','미세 카메라 사용','AI 답안 사용','쪽지 교환'];
 const outcomes = ['일반 학생','적발 성공','미적발','오인 적발'];
@@ -1487,6 +1674,8 @@ const settingDefinitions = [
   {id:'bell',label:'시작·종료 종소리',min:0,max:100},
 ];
 const settingsKey = 'exam-invigilator-settings-v1';
+const runBoost = 1.7, staminaDrain = .24, staminaRegen = .17, staminaRestDelay = .7, staminaRecovered = .35;
+const runKeys = ['ShiftLeft','ShiftRight'];
 const outOfHealth = 2;
 const pad = n => String(n).padStart(2,'0');
 const clock = s => pad(Math.floor(s/60))+':'+pad(s%60);
@@ -1509,6 +1698,7 @@ async function boot() {
   const bytes = Uint8Array.from(atob(wasm64),ch=>ch.charCodeAt(0));
   const {instance} = await WebAssembly.instantiate(bytes);
   const core = instance.exports;
+  core.game_reset(0,0);
   const settings = loadSettings();
   const sound = createClassroomAudio(core,settings);
   const classroom = createClassroom(ui.room,core,sound.burst);
@@ -1520,6 +1710,7 @@ async function boot() {
   let phase = 'intro';
   let zoom = false, yaw = 0, pitch = -.17, aimedSeat = -1;
   let frameTime = 0, toastUntil = 0, endingLeft = 0;
+  let stamina = 1, winded = false, staminaRest = 0;
   let pendingPointerLock = false, wasLocked = false;
 
   ui['help-rules'].innerHTML = ui['intro-rules'].innerHTML;
@@ -1552,6 +1743,12 @@ async function boot() {
       `<span aria-hidden="true"${i<health ? '' : ' class="spent"'}>♥︎</span>`).join('');
     ui.health.setAttribute('aria-label','체력 '+health+' / '+maxHealth);
     ui['caught-count'].textContent = core.game_caught_count()+' / '+suspects;
+  }
+
+  function updateStamina() {
+    ui['stamina-fill'].style.width = (stamina*100).toFixed(1)+'%';
+    ui.stamina.classList.toggle('winded',winded);
+    ui.stamina.setAttribute('aria-valuenow',String(Math.round(stamina*100)));
   }
 
   function releasePointer() {
@@ -1590,6 +1787,10 @@ async function boot() {
     yaw = 0;
     pitch = -.17;
     keys.clear();
+    stamina = 1;
+    winded = false;
+    staminaRest = 0;
+    updateStamina();
     setZoom(false);
     updateStatus();
     clearAim();
@@ -1604,6 +1805,7 @@ async function boot() {
     capturePointer();
     sound.bell(false);
     ui['stage-label'].textContent = (stage+1)+'단계';
+    ui['next-stage'].hidden = stage>=stageCount-1;
     toast(`${stage+1}단계 · 학생 ${count}명 중 부정행위자 ${suspects}명 · ${duration/60}분`,3000);
   }
 
@@ -1739,7 +1941,19 @@ async function boot() {
     const norm = Math.max(1,Math.hypot(right,forward));
     const sin = Math.sin(yaw), cos = Math.cos(yaw);
     const x = core.game_x(), z = core.game_z();
-    core.game_move((right*cos+forward*sin)/norm,(right*sin-forward*cos)/norm,dt);
+    const sprinting = (right || forward) && runKeys.some(key=>keys.has(key)) && !winded && stamina>0;
+    if (sprinting) {
+      stamina = Math.max(0,stamina-staminaDrain*dt);
+      staminaRest = staminaRestDelay;
+      if (!stamina) winded = true;
+    } else if (staminaRest>0) {
+      staminaRest -= dt;
+    } else {
+      stamina = Math.min(1,stamina+staminaRegen*dt);
+    }
+    if (winded && stamina>=staminaRecovered) winded = false;
+    updateStamina();
+    core.game_move((right*cos+forward*sin)/norm,(right*sin-forward*cos)/norm,dt,sprinting ? runBoost : 1);
     sound.walk(Math.hypot(core.game_x()-x,core.game_z()-z));
     rotate((Number(keys.has('ArrowRight'))-Number(keys.has('ArrowLeft')))*dt*1.75,
       (Number(keys.has('ArrowUp'))-Number(keys.has('ArrowDown')))*dt*1.35);
@@ -1770,7 +1984,17 @@ async function boot() {
     requestAnimationFrame(frame);
   }
 
-  ui.start.addEventListener('click',start);
+  for (const button of stageButtons) {
+    button.addEventListener('click',() => {
+      nextStage = Number(button.dataset.stage);
+      start();
+    });
+  }
+  ui['next-stage'].addEventListener('click',() => {
+    if (stage>=stageCount-1) return;
+    nextStage = stage+1;
+    start();
+  });
   ui.retry.addEventListener('click',start);
   ui.continue.addEventListener('click',()=>resume(true));
   ui['help-close'].addEventListener('click',()=>resume(true));
@@ -1824,6 +2048,7 @@ async function boot() {
       return;
     }
     if (phase!=='running') return;
+    if (runKeys.includes(event.code)) keys.add(event.code);
     if (movementKeys.includes(event.code)) {
       event.preventDefault();
       keys.add(event.code);
@@ -1833,7 +2058,7 @@ async function boot() {
   });
   document.addEventListener('keyup',event=>keys.delete(event.code));
 
-  ui.start.disabled = false;
+  for (const button of stageButtons) button.disabled = false;
   requestAnimationFrame(frame);
 }
 
