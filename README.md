@@ -41,4 +41,4 @@ C++23과 WebAssembly 타깃을 지원하는 Clang 및 wasm-ld가 필요하다. �
 
 ## 배포
 
-GitHub 저장소 `KIMJUNHAEE/exam-invigilator`의 GitHub Pages로 배포한다. `.gitignore`가 `index.html`, `.nojekyll`, `.gitignore`만 올라가게 막고 있어서 소스 코드와 기획 문서, 이 README는 저장소에 올라가지 않는다. 수정한 뒤 `.\build.ps1`로 다시 빌드하고 `index.html`을 커밋해 push하면 1~2분 안에 위 주소에 반영된다.
+GitHub 저장소 `KIMJUNHAEE/exam-invigilator`의 GitHub Pages로 배포한다. `.gitignore`가 `index.html`, `README.md`, `.nojekyll`, `.gitignore`만 올라가게 막고 있어서 소스 코드와 기획 문서는 저장소에 올라가지 않는다. 수정한 뒤 `.\build.ps1`로 다시 빌드하고 `index.html`을 커밋해 push하면 1~2분 안에 위 주소에 반영된다.
