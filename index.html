@@ -111,6 +111,39 @@ kbd {
 .reticle.ready { border: 2px solid #f3d28e; }
 .accuse-hint { position: absolute; top: calc(50% + 23px); left: 50%; transform: translateX(-50%); padding: 5px 10px; color: #ffe2aa; font-size: .82rem; }
 .accuse-hint kbd { margin-right: 4px; }
+.podium-hint { top: calc(50% + 62px); }
+.seat-map {
+  position: fixed; inset: 0; z-index: 5; display: grid; place-items: center;
+  padding: clamp(10px, 2.5vw, 30px); background: #0f1d1866;
+}
+.seat-map-card {
+  width: min(100%, 1000px); max-height: 100%; display: flex; flex-direction: column; gap: 10px;
+  padding: clamp(14px, 2.4vw, 22px); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 20px 72px #0b161364;
+}
+.seat-map-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.seat-map-header h2 { color: var(--cream); font-size: 1.4rem; letter-spacing: -.04em; margin-top: 3px; }
+.seat-map-clock { font: 700 1.5rem "Cascadia Mono", Consolas, monospace; color: #ffd594; }
+.seat-map-svg { width: 100%; height: auto; max-height: 66vh; min-height: 0; }
+.seat-map-status { min-height: 1.3em; color: #f0e1bc; font-size: .9rem; }
+.seat-map-keys { display: flex; flex-wrap: wrap; gap: 8px 15px; }
+.seat-map-keys span { display: inline-flex; gap: 6px; align-items: center; color: #d8ddd4; font-size: .83rem; }
+.map-room { fill: #1b2c26; stroke: #4c6358; stroke-width: .05; }
+.map-tier { fill: none; stroke: #2f443b; stroke-width: .04; }
+.map-screen { fill: #e9e7df; }
+.map-podium { fill: #6fb6cf; stroke: #d7f1fa; stroke-width: .04; }
+.map-label { font-size: .42px; fill: #c6d4cc; text-anchor: middle; font-weight: 700; }
+.map-player { fill: #ffd78e; stroke: #13221c; stroke-width: .05; }
+.map-seat { cursor: pointer; }
+.map-desk { fill: #c89d68; stroke: #5d4a33; stroke-width: .03; }
+.map-head { fill: #d9c4a6; stroke: #5d4a33; stroke-width: .02; }
+.map-seat text { font-size: .3px; font-weight: 800; fill: #1d2a25; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.map-seat:hover .map-desk { fill: #e7bb80; }
+.map-seat.selected .map-desk, .map-seat.selected .map-head { fill: var(--accent); stroke: #fff6d8; stroke-width: .07; }
+.map-seat.caught, .map-seat.wrong { cursor: default; }
+.map-seat.caught .map-desk { fill: #7ea086; }
+.map-seat.caught .map-head { fill: none; stroke: #7ea086; }
+.map-seat.wrong .map-desk { fill: #c38370; }
 .toast { position: absolute; left: 50%; transform: translateX(-50%); padding: 8px 12px; text-align: center; }
 .toast { bottom: 76px; max-width: 90%; color: #ffe2aa; font-size: .86rem; }
 .zoom-frame {
@@ -197,6 +230,7 @@ button.clean { background: #293c34; color: #c6d4cc; }
             <ul>
               <li>제한 시간 안에 학생의 행동을 관찰하고 부정행위자를 찾아내세요.</li>
               <li>1단계 교실은 학생 20명 중 4명(3분), 2단계 교실은 40명 중 8명(5분), 3단계 대강의실은 60명 중 12명(8분)입니다. 부정행위자를 모두 적발하면 다음 단계로 넘어갑니다.</li>
+              <li>3단계 대강의실에서는 앞쪽 전자교탁 옆에서 <kbd>E</kbd>를 눌러 좌석 배치도를 열 수 있습니다. 학생을 클릭하고 <kbd>F</kbd>를 누르면 멀리 있어도 적발하며, 배치도를 보는 동안에도 시간은 흐릅니다.</li>
               <li><kbd>Shift</kbd>를 누르고 이동하면 스태미나를 써서 달립니다. 스태미나가 바닥나면 조금 회복될 때까지 달릴 수 없습니다.</li>
               <li>의심하는 자리의 책상이나 학생을 조준해 <kbd>F</kbd>로 적발하세요. 일반 학생을 지목하면 하트를 하나 잃습니다.</li>
               <li>전원 적발, 체력 소진, 시간 종료 시 실제 부정행위자 좌석이 공개됩니다.</li>
@@ -239,6 +273,7 @@ button.clean { background: #293c34; color: #c6d4cc; }
       </div>
       <div id="reticle" class="reticle" aria-hidden="true"></div>
       <div id="accuse-hint" class="accuse-hint" hidden><kbd>F</kbd> 적발</div>
+      <div id="podium-hint" class="accuse-hint podium-hint" hidden><kbd>E</kbd> 좌석 배치도</div>
       <div id="zoom-frame" class="zoom-frame" hidden></div>
       <div id="toast" class="toast" role="status" hidden></div>
       <div class="hud-bottom">
@@ -276,6 +311,23 @@ button.clean { background: #293c34; color: #c6d4cc; }
       </div>
     </section>
 
+    <section id="seat-map" class="seat-map" role="dialog" aria-labelledby="seat-map-title" hidden>
+      <div class="seat-map-card">
+        <header class="seat-map-header">
+          <div>
+            <span class="small-label">전자교탁 · 시험 시간은 계속 흐릅니다</span>
+            <h2 id="seat-map-title">좌석 배치도</h2>
+          </div>
+          <strong id="seat-map-clock" class="seat-map-clock">00:00</strong>
+        </header>
+        <svg id="seat-map-svg" class="seat-map-svg" role="group" aria-label="강의실 좌석 배치도, 아래쪽이 교탁"></svg>
+        <p id="seat-map-status" class="seat-map-status" role="status"></p>
+        <div class="seat-map-keys">
+          <span><kbd>클릭</kbd> 학생 선택</span><span><kbd>F</kbd> 적발</span><span><kbd>E</kbd> 닫기</span>
+        </div>
+      </div>
+    </section>
+
     <section id="results" class="results-screen" aria-labelledby="results-title" hidden>
       <div class="results-sheet">
         <header class="results-header">
@@ -302,7 +354,7 @@ button.clean { background: #293c34; color: #c6d4cc; }
   </main>
   <script>
 'use strict';
-const wasm64 = 'AGFzbQEAAAABRg1gAn9/AGABfwBgAX0AYAR9fX19AGACfX0Bf2ADfX19AX9gAn9/AX1gAX8Bf2AAAX9gAX8BfWACf38Bf2AAAX1gAn19AX0DMC8AAQIDBAUGBwcICAgICAcHBwkJBwcHCgsLCwsLCQkJCQkICAgICwsLCwkLCwwICAQFAXABAQEFAwEAAgYIAX8BQYCABAsH1gUtBm1lbW9yeQIACmdhbWVfcmVzZXQAAAlnYW1lX3RpY2sAAglnYW1lX21vdmUAAwhnYW1lX2FpbQAFCWdhbWVfbmVhcgAHC2dhbWVfYWNjdXNlAAgLZ2FtZV9zdGF0dXMACQtnYW1lX2hlYWx0aAAKD2dhbWVfbWF4X2hlYWx0aAALEWdhbWVfY2F1Z2h0X2NvdW50AAwSZ2FtZV9zdXNwZWN0X2NvdW50AA0MZ2FtZV9vdXRjb21lAA4OZ2FtZV9pc19jYXVnaHQADwtnYW1lX21ldGhvZAAQEGdhbWVfYWN0aW9uX3RpbWUAERBnYW1lX2dsYW5jZV90aW1lABITZ2FtZV9nbGFuY2VfY2VpbGluZwATEWdhbWVfbm90ZV9wYXJ0bmVyABQQZ2FtZV9ub3RlX3NlbmRlcgAVCmdhbWVfZXZlbnQAFg1nYW1lX2R1cmF0aW9uABcOZ2FtZV9yZW1haW5pbmcAGAZnYW1lX3gAGQZnYW1lX3kAGgZnYW1lX3oAGwtnYW1lX3NlYXRfeAAcC2dhbWVfc2VhdF96AB0NZ2FtZV9zZWF0X3lhdwAeDmdhbWVfc2VhdF9saWZ0AB8UZ2FtZV9zZWF0X2hhbGZfd2lkdGgAIA9nYW1lX3NlYXRfY291bnQAIQxnYW1lX2NvbHVtbnMAIglnYW1lX3Jvd3MAIwtnYW1lX2xheW91dAAkEWdhbWVfc2VhdF9zcGFjaW5nACUUZ2FtZV9yb29tX2hhbGZfd2lkdGgAJhBnYW1lX3Jvb21fYmFja196ACcSZ2FtZV9oYWxsX2NlbnRlcl96ACgQZ2FtZV9oYWxsX3JhZGl1cwApEmdhbWVfaGFsbF9yb3dfc3RlcAAqEGdhbWVfdGllcl9oZWlnaHQAKxFnYW1lX2Zsb29yX2hlaWdodAAsCmdhbWVfc3RhZ2UALRBnYW1lX3N0YWdlX2NvdW50AC4K0jIvwA0KBX8DfQF/An0BfwJ9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AkAgAEEASA0AIABBACgCzISEgABODQAgAEEAKgLAhISAACAAQQ1sQRhwQQVqs5NDAAAAPZT8AGpBAXEhAQsgAQtYAQN/AkBBACgCkIyEgAAiAUEBTg0AQX8PC0GQgoSAACECAkACQANAIAIoAgAgAEYNASACQRRqIQJBfyEDIAFBf2oiAUUNAgwACwsgAkEMaigCACEDCyADC1IBA39BACEBAkBBACgCkIyEgAAiAkEBSA0AQZCChIAAIQMCQANAIAMoAgAgAEYNASADQRRqIQMgAkF/aiICRQ0CDAALCyADQRBqLQAAIQELIAELkwEBA38CQEEAKAKQjISAACICQQFODQBBfw8LQZCChIAAIQMCQAJAA0AgAygCACAARg0BIANBFGohA0F/IQQgAkF/aiICRQ0CDAALCwJAIAFBAE4NAEF/DwtBfyEEIAEgA0EIaigCACIDQQJ0QaCMhIAAaigCAE4NACADQdAAbCABQQJ0akHQjISAAGooAgAhBAsgBAsOAEEAKALwgYSAACoCDAsYAEEAKALwgYSAACoCDEEAKgLAhISAAJMLCwBBACoCxISEgAALEQBBACoCyISEgABDCtfDP5ILCwBBACoC+IGEgAALMwEBfUMAAAAAIQECQCAAQQBIDQAgAEEAKALMhISAAE4NACAAQQJ0KgLAhoSAACEBCyABCzMBAX1DAAAAACEBAkAgAEEASA0AIABBACgCzISEgABODQAgAEECdCoCsIiEgAAhAQsgAQszAQF9QwAAAAAhAQJAIABBAEgNACAAQQAoAsyEhIAATg0AIABBAnQqApCUhIAAIQELIAELMwEBfUMAAAAAIQECQCAAQQBIDQAgAEEAKALMhISAAE4NACAAQQJ0KgLQhISAACEBCyABCzMBAX1DAAAAACEBAkAgAEEASA0AIABBACgCzISEgABODQAgAEECdCoCoIqEgAAhAQsgAQsLAEEAKALMhISAAAsOAEEAKALwgYSAACgCBAsOAEEAKALwgYSAACgCCAsOAEEAKALwgYSAACgCAAsOAEEAKALwgYSAACoCEAsOAEEAKALwgYSAACoCGAsOAEEAKALwgYSAACoCHAsOAEEAKALwgYSAACoCLAsaACAAskEAKALwgYSAACIAKgIUlCAAKgIwkgsOAEEAKALwgYSAACoCFAsOAEEAKALwgYSAACoCOAuGAQIBfwF9AkBBACgC8IGEgAAiAigCAA0AQwAAAAAPC0MAAAAAIQMCQCAAIACUIAEgAioCLJMiACAAlJKRIAIqAhQiAEMAAAAAlCACKgIwkkMAAAC/kpMgAJUiAEMAAIA/XQ0AIAIqAjggAPwAsiIAIAIoAghBf2qyIgEgACABXRuUIQMLIAMLFgBBACgC8IGEgABBgICEgABrQcgAbQsEAEEDCwuRBAIAQYCABAvwAQAAAAAEAAAABQAAAAAANEOamQlAUrjeP5qZmUApXMfAAQAAAAEAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAABQAAAAAAlkMAAABAUrjeP5qZCUEpXMfAAgAAAAIAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAKAAAABgAAAAAA8EMAAKA/zczMPwAAIEEzM/PAAwAAAAMAAAADAAAAAADQQTMzu0EAAMA/mpmZPgMAAAAEAAAAAwAAABSux75xPUo/AACAvxSuxz72KLw/j8J1vgBB8IEEC5ACAAABAAMAAADNzJRA/////wEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/////AAAAAAAAAAAAAAAAAAAAAP////8AAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAAAAAAAAAAAAAAD/////AAAAAAAAAAAAAAAAAAAAAP////8AAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAAAAAAAAAAAAAAD/////AAAAAAAAAAAAAAAAAAAAAP////8AAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAAAAAAAAAAAAAAD/////AAAAAAAAAAAAAAAAAAAAAP////8AAAAAAAAAAAAAAAAAAAAA/////wAAAAA=';
+const wasm64 = 'AGFzbQEAAAABRg1gAn9/AGABfwBgAX0AYAR9fX19AGACfX0Bf2ADfX19AX9gAn9/AX1gAX8Bf2AAAX9gAX8BfWACf38Bf2AAAX1gAn19AX0DMjEAAQIDBAUGBwcHCAgICAgIBwcHCQkHBwcKCwsLCwsJCQkJCQgICAgLCwsLCQsLDAgIBAUBcAEBAQUDAQACBggBfwFBgIAECwf+BS8GbWVtb3J5AgAKZ2FtZV9yZXNldAAACWdhbWVfdGljawACCWdhbWVfbW92ZQADCGdhbWVfYWltAAUJZ2FtZV9uZWFyAAcLZ2FtZV9hY2N1c2UACBJnYW1lX2FjY3VzZV9yZW1vdGUACRBnYW1lX25lYXJfcG9kaXVtAAoLZ2FtZV9zdGF0dXMACwtnYW1lX2hlYWx0aAAMD2dhbWVfbWF4X2hlYWx0aAANEWdhbWVfY2F1Z2h0X2NvdW50AA4SZ2FtZV9zdXNwZWN0X2NvdW50AA8MZ2FtZV9vdXRjb21lABAOZ2FtZV9pc19jYXVnaHQAEQtnYW1lX21ldGhvZAASEGdhbWVfYWN0aW9uX3RpbWUAExBnYW1lX2dsYW5jZV90aW1lABQTZ2FtZV9nbGFuY2VfY2VpbGluZwAVEWdhbWVfbm90ZV9wYXJ0bmVyABYQZ2FtZV9ub3RlX3NlbmRlcgAXCmdhbWVfZXZlbnQAGA1nYW1lX2R1cmF0aW9uABkOZ2FtZV9yZW1haW5pbmcAGgZnYW1lX3gAGwZnYW1lX3kAHAZnYW1lX3oAHQtnYW1lX3NlYXRfeAAeC2dhbWVfc2VhdF96AB8NZ2FtZV9zZWF0X3lhdwAgDmdhbWVfc2VhdF9saWZ0ACEUZ2FtZV9zZWF0X2hhbGZfd2lkdGgAIg9nYW1lX3NlYXRfY291bnQAIwxnYW1lX2NvbHVtbnMAJAlnYW1lX3Jvd3MAJQtnYW1lX2xheW91dAAmEWdhbWVfc2VhdF9zcGFjaW5nACcUZ2FtZV9yb29tX2hhbGZfd2lkdGgAKBBnYW1lX3Jvb21fYmFja196ACkSZ2FtZV9oYWxsX2NlbnRlcl96ACoQZ2FtZV9oYWxsX3JhZGl1cwArEmdhbWVfaGFsbF9yb3dfc3RlcAAsEGdhbWVfdGllcl9oZWlnaHQALRFnYW1lX2Zsb29yX2hlaWdodAAuCmdhbWVfc3Rh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';
 // Seat order is stable between rounds. The scenario assigns misconduct separately.
 const studentProfiles = [
   // Hair color, shirt, trim, trousers, skin, eyewear.
@@ -1186,7 +1238,43 @@ function createClassroom(canvas, core, onBurst) {
   };
   const meshList = Object.values(meshes);
   const viewCone = {x:0,y:0,z:0,fx:0,fy:0,fz:-1,halfAngle:1};
-  const stats = {students:0,totalStudents:0,instances:0};
+  const stats = {students:0,totalStudents:0,instances:0,scale:1};
+
+  // Dynamic resolution: watch the smoothed frame time and trade render scale for a steady 60 fps.
+  // A step down that follows a step up right away doubles the wait before the next attempt, so the
+  // scale settles instead of oscillating. Scale is the canvas pixels per CSS pixel.
+  const minScale = .6, slowFrame = 18.2, steadyFrame = 17.4;
+  const quality = {scale:0,average:16.7,last:0,checkAt:0,steadySince:0,raiseWait:3000,raisedAt:-1e9};
+  function adaptResolution(now) {
+    const top = Math.min(window.devicePixelRatio || 1, 1.65);
+    if (!quality.scale) quality.scale = top;
+    const frame = now-quality.last;
+    quality.last = now;
+    if (frame<100) quality.average += (frame-quality.average)*.08;
+    if (now<quality.checkAt) return Math.min(quality.scale,top);
+    quality.checkAt = now+500;
+    let next = quality.scale;
+    if (quality.average>slowFrame && quality.scale>minScale) {
+      if (now-quality.raisedAt<2500) quality.raiseWait = Math.min(30000,quality.raiseWait*2);
+      next = Math.max(minScale,quality.scale*.88);
+      quality.steadySince = now;
+    } else if (quality.average<=steadyFrame) {
+      if (!quality.steadySince) quality.steadySince = now;
+      if (quality.scale<top && now-quality.steadySince>=quality.raiseWait) {
+        next = Math.min(top,quality.scale*1.07);
+        quality.raisedAt = now;
+        quality.steadySince = now;
+      }
+    } else {
+      quality.steadySince = now;
+    }
+    if (next!==quality.scale) {
+      quality.scale = next;
+      quality.average = 16.7;
+      quality.checkAt = now+1000;
+    }
+    return Math.min(quality.scale,top);
+  }
   gl.enable(gl.DEPTH_TEST);
   gl.clearColor(.30, .34, .32, 1);
   const projectionLocation = gl.getUniformLocation(program, 'viewProjection');
@@ -1420,6 +1508,9 @@ function createClassroom(canvas, core, onBurst) {
     box(-3.2,.55,4.9,.9,1.1,.7,0xcdd0d2);
     box(-3.66,.55,4.9,.05,1.12,.73,0x2a2c2f);
     box(-3.2,1.14,4.9,.96,.06,.74,0xdcdee0,0,.12);
+    // Electronic lectern: a lit touch screen set into the slanted top.
+    box(-3.2,1.185,4.86,.56,.012,.38,0x26363c,0,.12);
+    box(-3.2,1.19,4.86,.5,.01,.32,0x6fb6cf,3,.12);
     box(-3.02,1.33,4.72,.014,.34,.014,0x222426,0,-.5);
     box(.4-half,1.75,3.4,.05,1.8,3.0,0x8c918e);
     box(.43-half,1.75,3.4,.03,1.62,2.84,0x6f8c97,3);
@@ -1540,7 +1631,8 @@ function createClassroom(canvas, core, onBurst) {
   }
 
   function draw(camera, elapsed, remaining, zoom, animated, effectDelta, aimedSeat) {
-    const scale = Math.min(window.devicePixelRatio || 1, 1.65);
+    const scale = adaptResolution(performance.now());
+    stats.scale = scale;
     const width = Math.max(1,Math.floor(canvas.clientWidth*scale));
     const height = Math.max(1,Math.floor(canvas.clientHeight*scale));
     if (canvas.width!==width || canvas.height!==height) { canvas.width=width; canvas.height=height; }
@@ -1570,18 +1662,21 @@ function createClassroom(canvas, core, onBurst) {
     stats.totalStudents = desks.length;
     drawBursts();
     if (aimedSeat>=0) markDesk(aimedSeat);
+    // Students and effects first, then the room: everything is opaque, so the depth test lets the GPU
+    // skip floor and wall pixels hidden behind students instead of shading them and painting over.
     stats.instances = 0;
     for (const mesh of meshList) {
-      if (mesh.fixed.count) {
-        gl.bindVertexArray(mesh.fixed.vao);
-        gl.drawArraysInstanced(gl.TRIANGLES,0,mesh.vertices,mesh.fixed.count);
-      }
-      if (mesh.cursor) {
-        uploadDynamic(mesh);
-        gl.bindVertexArray(mesh.dynamic.vao);
-        gl.drawArraysInstanced(gl.TRIANGLES,0,mesh.vertices,mesh.dynamic.count);
-      }
-      stats.instances += mesh.fixed.count+mesh.cursor/stride;
+      if (!mesh.cursor) continue;
+      uploadDynamic(mesh);
+      gl.bindVertexArray(mesh.dynamic.vao);
+      gl.drawArraysInstanced(gl.TRIANGLES,0,mesh.vertices,mesh.dynamic.count);
+      stats.instances += mesh.dynamic.count;
+    }
+    for (const mesh of meshList) {
+      if (!mesh.fixed.count) continue;
+      gl.bindVertexArray(mesh.fixed.vao);
+      gl.drawArraysInstanced(gl.TRIANGLES,0,mesh.vertices,mesh.fixed.count);
+      stats.instances += mesh.fixed.count;
     }
     gl.bindVertexArray(null);
     return stats;
@@ -1597,7 +1692,12 @@ function createClassroom(canvas, core, onBurst) {
     buildRoom();
   }
 
-  return {draw,direction,catchStudent,hasCatchEffects:()=>catches.size>0,resetEffects,setStage,
+  // A point on the student's face, for pointing the camera at a seat.
+  function seatFace(seat) {
+    return seatPoint(seat,0,1.22,-.69);
+  }
+
+  return {draw,direction,catchStudent,hasCatchEffects:()=>catches.size>0,resetEffects,setStage,seatFace,
     reactToWrongAccusation:seat=>students.reactToWrongAccusation(seat)};
 }
 
@@ -1786,7 +1886,8 @@ function createClassroomAudio(core, mix={}) {
 const $ = id => document.getElementById(id);
 const ui = Object.fromEntries(['room','intro','load-error','hud','health','stamina','stamina-fill','stage-label','caught-count','reticle',
   'zoom-frame','zoom-key','toast','overlay','continue','results','results-title','retry','accuse-hint',
-  'intro-rules','help','help-rules','settings','help-close','next-stage','stats','suspect-list','result-grid','result-detail'].map(id => [id,$(id)]));
+  'intro-rules','help','help-rules','settings','help-close','next-stage','stats','suspect-list','result-grid','result-detail',
+  'podium-hint','seat-map','seat-map-svg','seat-map-clock','seat-map-status'].map(id => [id,$(id)]));
 const stageButtons = [...document.querySelectorAll('[data-stage]')];
 
 const methods = ['일반 학생','미세 카메라 사용','AI 답안 사용','쪽지 교환'];
@@ -1811,6 +1912,10 @@ const outOfHealth = 2;
 const pad = n => String(n).padStart(2,'0');
 const clock = s => pad(Math.floor(s/60))+':'+pad(s%60);
 const seatName = i => pad(i+1)+'번';
+const wrapAngle = angle => Math.atan2(Math.sin(angle),Math.cos(angle));
+const easeInOut = t => { const v = Math.max(0,Math.min(1,t)); return v*v*(3-2*v); };
+// Remote accusations: the camera swings to the student through the magnifier, then control returns.
+const focusTurn = .35, focusCatchLength = 1.9, focusWrongLength = 2.3;
 
 function loadSettings() {
   const values = Object.fromEntries(settingDefinitions.map(({id})=>[id,100]));
@@ -1842,6 +1947,7 @@ async function boot() {
   let zoom = false, yaw = 0, pitch = -.17, aimedSeat = -1;
   let frameTime = 0, toastUntil = 0, endingLeft = 0;
   let stamina = 1, winded = false, staminaRest = 0, shownStamina = -1, shownWinded = false;
+  let mapSeat = -1, shownMapClock = '', focus = null;
   // ?debug in the address shows frame rate, the longest frame, drawn students and instance count.
   const debug = new URLSearchParams(location.search).has('debug')
     ? {panel:document.createElement('div'),frames:0,worst:0,since:0} : null;
@@ -1858,7 +1964,7 @@ async function boot() {
     if (now-debug.since<500) return;
     const fps = debug.frames*1000/(now-debug.since);
     debug.panel.textContent = `FPS ${fps.toFixed(0)} · 최장 프레임 ${debug.worst.toFixed(1)}ms · `+
-      `학생 ${stats.students}/${stats.totalStudents} · 도형 ${Math.round(stats.instances).toLocaleString()}`;
+      `학생 ${stats.students}/${stats.totalStudents} · 도형 ${Math.round(stats.instances).toLocaleString()} · 해상도 ${stats.scale.toFixed(2)}x`;
     debug.frames = 0;
     debug.worst = 0;
     debug.since = now;
@@ -1951,6 +2057,8 @@ async function boot() {
     updateStatus();
     clearAim();
     ui.toast.hidden = true;
+    ui['seat-map'].hidden = true;
+    focus = null;
     ui.intro.hidden = true;
     ui.results.hidden = true;
     ui.overlay.hidden = true;
@@ -1966,6 +2074,7 @@ async function boot() {
   }
 
   function pause(mode='paused') {
+    if (phase==='map') closeSeatMap(false);
     if (phase!=='running') return;
     phase = mode;
     keys.clear();
@@ -2071,6 +2180,118 @@ async function boot() {
     if (reason) startEnding(reason);
   }
 
+  // Lecture hall seat map, drawn top-down with the lectern at the bottom like the room seen from the front.
+  function renderSeatMap() {
+    const half = core.game_room_half_width(), back = core.game_room_back_z(), front = 6.23;
+    const depth = front-back, centerZ = core.game_hall_center_z(), rows = core.game_rows();
+    const y = z => (z-back).toFixed(3);
+    const parts = [`<rect class="map-room" x="${-half}" y="0" width="${half*2}" height="${depth}" rx=".25"/>`];
+    for (let row=1;row<rows;row++) {
+      parts.push(`<circle class="map-tier" cx="0" cy="${y(centerZ)}" r="${(core.game_hall_radius(row)-.5).toFixed(3)}"/>`);
+    }
+    parts.push(`<rect class="map-screen" x="-3.1" y="${(depth-.2).toFixed(3)}" width="6.2" height=".12"/>`,
+      `<text class="map-label" x="0" y="${(depth-.45).toFixed(3)}">스크린</text>`,
+      `<rect class="map-podium" x="${-3.2-.45}" y="${(4.9-back-.35).toFixed(3)}" width=".9" height=".7" rx=".08"/>`,
+      `<text class="map-label" x="-3.2" y="${(4.9-back+.75).toFixed(3)}">교탁</text>`,
+      `<circle class="map-player" cx="${core.game_x().toFixed(3)}" cy="${y(core.game_z())}" r=".2"/>`);
+    for (let seat=0;seat<count;seat++) {
+      const outcome = core.game_outcome(seat);
+      const state = outcome===1 ? ' caught' : outcome===3 ? ' wrong' : seat===mapSeat ? ' selected' : '';
+      const hw = core.game_seat_half_width(seat), angle = -core.game_seat_yaw(seat)*180/Math.PI;
+      parts.push(`<g class="map-seat${state}" data-seat="${seat}" transform="translate(${core.game_seat_x(seat).toFixed(3)} ${y(core.game_seat_z(seat))}) rotate(${angle.toFixed(2)})">`+
+        `<rect class="map-desk" x="${(-hw+.03).toFixed(3)}" y="-.28" width="${(hw*2-.06).toFixed(3)}" height=".56" rx=".06"/>`+
+        `<circle class="map-head" cx="0" cy="-.74" r=".2"/><text x="0" y="0">${seat+1}</text></g>`);
+    }
+    ui['seat-map-svg'].setAttribute('viewBox',`${-half-.3} -.3 ${half*2+.6} ${depth+.6}`);
+    ui['seat-map-svg'].innerHTML = parts.join('');
+  }
+
+  function mapStatus(message) {
+    ui['seat-map-status'].textContent = message;
+  }
+
+  function updateMapClock() {
+    const text = clock(Math.max(0,Math.ceil(core.game_remaining())));
+    if (text===shownMapClock) return;
+    shownMapClock = text;
+    ui['seat-map-clock'].textContent = text;
+  }
+
+  function openSeatMap() {
+    phase = 'map';
+    keys.clear();
+    clearAim();
+    setZoom(false);
+    releasePointer();
+    mapSeat = -1;
+    renderSeatMap();
+    updateMapClock();
+    mapStatus('학생을 클릭해 선택한 뒤 F를 누르세요.');
+    ui['seat-map'].hidden = false;
+  }
+
+  function closeSeatMap(relock) {
+    ui['seat-map'].hidden = true;
+    if (phase!=='map') return;
+    phase = 'running';
+    if (relock) capturePointer();
+  }
+
+  function selectMapSeat(seat) {
+    const outcome = core.game_outcome(seat);
+    if (outcome===1 || outcome===3) {
+      mapStatus(seatName(seat)+' 학생은 이미 확인했어요.');
+      return;
+    }
+    mapSeat = seat;
+    for (const node of ui['seat-map-svg'].querySelectorAll('.map-seat')) {
+      node.classList.toggle('selected',Number(node.dataset.seat)===seat);
+    }
+    mapStatus(seatName(seat)+' 학생 선택 · F를 누르면 적발합니다.');
+  }
+
+  function remoteAccuse() {
+    if (mapSeat<0) {
+      mapStatus('먼저 학생을 클릭해 선택하세요.');
+      return;
+    }
+    const seat = mapSeat;
+    const decision = core.game_accuse_remote(seat);
+    if (!decision) {
+      mapStatus(seatName(seat)+' 학생은 적발할 수 없어요.');
+      return;
+    }
+    ui['seat-map'].hidden = true;
+    updateStatus();
+    const [tx,ty,tz] = classroom.seatFace(seat);
+    const dx = tx-core.game_x(), dy = ty-core.game_y(), dz = tz-core.game_z();
+    focus = {age:0,fromYaw:yaw,fromPitch:pitch,length:decision===1 ? focusCatchLength : focusWrongLength};
+    focus.toYaw = yaw+wrapAngle(Math.atan2(dx,-dz)-yaw);
+    focus.toPitch = Math.atan2(dy,Math.hypot(dx,dz));
+    setZoom(true);
+    phase = 'focus';
+    if (decision===1) {
+      classroom.catchStudent(seat);
+      toast(seatName(seat)+' 학생 적발');
+    } else {
+      classroom.reactToWrongAccusation(seat);
+      toast(seatName(seat)+' 학생은 일반 학생입니다 · 체력 −1');
+    }
+  }
+
+  function updateFocus(dt) {
+    focus.age += dt;
+    const t = easeInOut(focus.age/focusTurn);
+    yaw = focus.fromYaw+(focus.toYaw-focus.fromYaw)*t;
+    pitch = focus.fromPitch+(focus.toPitch-focus.fromPitch)*t;
+    if (focus.age<focus.length) return;
+    focus = null;
+    setZoom(false);
+    const reason = core.game_status();
+    if (reason) startEnding(reason);
+    else phase = 'running';
+  }
+
   function startEnding(reason) {
     phase = 'ending';
     endingLeft = reason===outOfHealth ? 1.50 : 0;
@@ -2089,6 +2310,7 @@ async function boot() {
     aimedSeat = -1;
     ui.reticle.classList.toggle('ready',false);
     ui['accuse-hint'].hidden = true;
+    ui['podium-hint'].hidden = true;
   }
 
   function updateWalking(dt) {
@@ -2116,6 +2338,7 @@ async function boot() {
     aimedSeat = core.game_aim(...classroom.direction(yaw,pitch));
     ui.reticle.classList.toggle('ready',aimedSeat>=0);
     ui['accuse-hint'].hidden = aimedSeat<0 || core.game_outcome(aimedSeat)===3;
+    ui['podium-hint'].hidden = !core.game_near_podium();
   }
 
   function frame(now) {
@@ -2126,6 +2349,18 @@ async function boot() {
       const reason = core.game_status();
       if (reason) startEnding(reason);
       else updateWalking(Math.min(.05,dt));
+    } else if (phase==='map') {
+      core.game_tick(dt);
+      const reason = core.game_status();
+      if (reason) {
+        ui['seat-map'].hidden = true;
+        startEnding(reason);
+      } else {
+        updateMapClock();
+      }
+    } else if (phase==='focus') {
+      core.game_tick(dt);
+      updateFocus(dt);
     } else if (phase==='ending') {
       endingLeft -= dt;
     }
@@ -2133,7 +2368,7 @@ async function boot() {
     const introCamera = {x:3.72,y:1.54,z:5.01,yaw:-.43,pitch:-.12};
     const camera = phase==='intro' ? introCamera : {x:core.game_x(),y:core.game_y(),z:core.game_z(),yaw,pitch};
     const remaining = core.game_remaining(), elapsed = duration-remaining;
-    if (phase==='running') sound.update(elapsed,camera);
+    if (phase==='running' || phase==='map' || phase==='focus') sound.update(elapsed,camera);
     const effectsPaused = phase==='paused' || phase==='help';
     const stats = classroom.draw(camera,elapsed,remaining,phase!=='intro'&&zoom,phase!=='intro',effectsPaused ? 0 : dt,aimedSeat);
     if (debug) updateDebug(now,dt,stats);
@@ -2204,7 +2439,23 @@ async function boot() {
       }
       return;
     }
+    if (phase==='map') {
+      if (event.repeat) return;
+      if (event.code==='KeyF') {
+        event.preventDefault();
+        remoteAccuse();
+      } else if (event.code==='KeyE' || event.code==='Escape') {
+        event.preventDefault();
+        closeSeatMap(true);
+      }
+      return;
+    }
     if (phase!=='running') return;
+    if (event.code==='KeyE' && !event.repeat && core.game_near_podium()) {
+      event.preventDefault();
+      openSeatMap();
+      return;
+    }
     if (runKeys.includes(event.code)) keys.add(event.code);
     if (movementKeys.includes(event.code)) {
       event.preventDefault();
@@ -2214,6 +2465,10 @@ async function boot() {
     if (event.code==='KeyF' && !event.repeat) accuse();
   });
   document.addEventListener('keyup',event=>keys.delete(event.code));
+  ui['seat-map-svg'].addEventListener('click',event => {
+    const node = event.target.closest('.map-seat');
+    if (node && phase==='map') selectMapSeat(Number(node.dataset.seat));
+  });
 
   for (const button of stageButtons) button.disabled = false;
   requestAnimationFrame(frame);
