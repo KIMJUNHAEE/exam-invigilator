@@ -6,6 +6,7 @@
 
 - 온라인: https://kimjunhaee.github.io/exam-invigilator/ 에 PC의 Chrome 또는 Edge로 접속한다.
 - `index.html`을 Chrome 또는 Edge로 연다. 파일 하나에 WebAssembly와 화면 코드가 들어 있어 인터넷 연결과 개발 서버 없이 실행할 수 있다.
+- 주소 끝에 `?debug`를 붙이면(예: `https://kimjunhaee.github.io/exam-invigilator/?debug`) 화면 위쪽에 FPS, 0.5초 동안 가장 길었던 프레임 시간, 그려진 학생 수, 도형 수가 표시된다.
 - 첫 화면에서 **1단계 시작**, **2단계 시작**, **3단계 시작** 중 하나를 누르면 그 단계가 바로 시작되고 시점 조작이 활성화된다. 마우스 잠금이 풀린 상태에서는 게임 화면 안에서 마우스를 움직여 시점을 돌릴 수 있다. 이동키를 누르거나 게임 화면을 클릭하면 마우스 잠금이 다시 적용된다.
 
 | 조작 | 동작 |

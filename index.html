@@ -82,6 +82,11 @@ kbd {
 .stamina { margin-top: 5px; height: 7px; min-width: 110px; background: #2a3a34; border-radius: 4px; overflow: hidden; }
 .stamina span { display: block; height: 100%; width: 100%; background: #8fcfa6; }
 .stamina.winded span { background: #d98a69; }
+.debug-panel {
+  position: fixed; top: 6px; left: 50%; transform: translateX(-50%); z-index: 20; pointer-events: none;
+  padding: 4px 9px; border-radius: 5px; background: #0d1a16d9; color: #bfe7cf;
+  font: 600 .74rem "Cascadia Mono", Consolas, monospace; white-space: nowrap;
+}
 #load-error { margin-top: 12px; color: #ffbc9f; }
 .hud { position: fixed; inset: 0; pointer-events: none; }
 .hud-top { display: flex; justify-content: space-between; margin: 22px clamp(12px, 3.2vw, 42px); }
@@ -386,14 +391,27 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
   const sides = [-1,1];
   let frame = null;
 
+  // Scratch vectors live for one draw call and are recycled at the start of the next, so drawing
+  // 60 students does not leave tens of thousands of short-lived arrays for the garbage collector.
+  // A vector from v3 must not be kept after the draw that produced it.
+  const vectors = [];
+  let vectorsUsed = 0;
+  function v3(x, y, z) {
+    let v = vectors[vectorsUsed];
+    if (!v) v = vectors[vectorsUsed] = [0,0,0];
+    vectorsUsed++;
+    v[0] = x; v[1] = y; v[2] = z;
+    return v;
+  }
+
   function toWorld(f, p) {
     const dx = p[0]-f.x, dz = p[2]-f.z;
-    return [f.x+f.c*dx+f.s*dz,p[1]+f.lift,f.z-f.s*dx+f.c*dz];
+    return v3(f.x+f.c*dx+f.s*dz,p[1]+f.lift,f.z-f.s*dx+f.c*dz);
   }
 
   function toLocal(f, p) {
     const dx = p[0]-f.x, dz = p[2]-f.z;
-    return [f.x+f.c*dx-f.s*dz,p[1]-f.lift,f.z+f.s*dx+f.c*dz];
+    return v3(f.x+f.c*dx-f.s*dz,p[1]-f.lift,f.z+f.s*dx+f.c*dz);
   }
 
   function primitive(shape, center, size, hex, pitch=0, yaw=0, roll=0, material=0) {
@@ -415,12 +433,23 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
     return t*t*(3-2*t);
   };
   const fade = (time,from,inEnd,outStart,to) => smooth((time-from)/(inEnd-from))*(1-smooth((time-outStart)/(to-outStart)));
-  const lerp = (a,b,t) => a.map((v,i) => mix(v,b[i],t));
-  const add = (a,b) => a.map((v,i) => v+b[i]);
-  const subtract = (a,b) => a.map((v,i) => v-b[i]);
-  const scale = (v,s) => v.map(n => n*s);
+  const lerp = (a,b,t) => v3(a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t);
+  const add = (a,b) => v3(a[0]+b[0],a[1]+b[1],a[2]+b[2]);
+  const subtract = (a,b) => v3(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+  const scale = (v,s) => v3(v[0]*s,v[1]*s,v[2]*s);
   const dot = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
-  const length = v => Math.hypot(...v);
+  const length = v => Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
+  // Constant offsets and sizes are shared; primitive() copies them into the instance buffer.
+  const cuffTrimCuts = new Set(['track','baseball','bomber']);
+  const elbowSize = [.098,.097,.098], kneeSize = [.145,.143,.144];
+  const shoeSize = [.148,.116,.241], soleSize = [.150,.047,.246];
+  const gripOffset = [.003,.028,-.011], penLow = [.030,-.052,.053], penHigh = [.024,-.014,.066];
+  const phoneOffset = [-.019,-.006,.033], screenOffset = [-.019,.003,.033];
+  const phoneSize = [.079,.014,.127], screenSize = [.066,.008,.108];
+  const lightOn = [.031,.027,.024], lightOff = [.022,.020,.019], glintOffset = [0,.002,.010], glintSize = [.013,.011,.012];
+  const paperOffset = [.002,.025,.013], paperSize = [.122,.017,.086];
+  const fingerRoots = [[-.028,.059,.020,.046],[0,.060,.023,.053],[.024,.058,.019,.048],[.043,.053,.015,.036]];
+  const palmFingers = [[-.027,.102],[-.009,.117],[.010,.111],[.029,.093]];
   const reactions = Array(desks.length).fill(null);
   const looks = desks.map((_,seat) => studentLook(seat));
   const wrapAngle = angle => Math.atan2(Math.sin(angle),Math.cos(angle));
@@ -457,23 +486,36 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
     };
   }
 
+  // Joints are pooled like vectors: valid until the next draw call.
+  class Joint {
+    set(origin, pitch, yaw) {
+      this.x = origin[0]; this.y = origin[1]; this.z = origin[2];
+      this.pitch = pitch; this.yaw = yaw;
+      this.cp = Math.cos(pitch); this.sp = Math.sin(pitch); this.cy = Math.cos(yaw); this.sy = Math.sin(yaw);
+      return this;
+    }
+    point(x,y,z) {
+      const depth = this.sp*y+this.cp*z;
+      return v3(this.x+this.cy*x+this.sy*depth,this.y+this.cp*y-this.sp*z,this.z-this.sy*x+this.cy*depth);
+    }
+    part(shape,x,y,z,w,h,d,color,roll=0) {
+      primitive(shape,this.point(x,y,z),v3(w,h,d),color,this.pitch,this.yaw,roll);
+    }
+  }
+  const joints = [];
+  let jointsUsed = 0;
   function joint(origin, pitch, yaw) {
-    const cp = Math.cos(pitch), sp = Math.sin(pitch), cy = Math.cos(yaw), sy = Math.sin(yaw);
-    return {
-      point(x,y,z) {
-        const depth = sp*y+cp*z;
-        return [origin[0]+cy*x+sy*depth,origin[1]+cp*y-sp*z,origin[2]-sy*x+cy*depth];
-      },
-      part(shape,x,y,z,w,h,d,color,roll=0) {
-        primitive(shape,this.point(x,y,z),[w,h,d],color,pitch,yaw,roll);
-      },
-    };
+    let j = joints[jointsUsed];
+    if (!j) j = joints[jointsUsed] = new Joint();
+    jointsUsed++;
+    return j.set(origin,pitch,yaw);
   }
 
   function segment(shape, a, b, width, depth, color) {
-    const [x,y,z] = subtract(b,a);
-    primitive(shape,lerp(a,b,.5),[width,depth,Math.hypot(x,y,z)],color,
-      -Math.atan2(y,Math.hypot(x,z)),Math.atan2(x,z));
+    const x = b[0]-a[0], y = b[1]-a[1], z = b[2]-a[2];
+    const flat = Math.sqrt(x*x+z*z);
+    primitive(shape,lerp(a,b,.5),v3(width,depth,Math.sqrt(flat*flat+y*y)),color,
+      -Math.atan2(y,flat),Math.atan2(x,z));
   }
 
   function garment(body, index, shirt, trim) {
@@ -594,7 +636,7 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
     if (!frames) return;
     const {color,width,height,corner,wire} = frames;
     const w = width*.5, h = height*.5;
-    const outline = [[-w+corner,-h],[w-corner,-h],[w,-h+corner],[w,h-corner],
+    const outline = frames.outline ??= [[-w+corner,-h],[w-corner,-h],[w,-h+corner],[w,h-corner],
       [w-corner,h],[-w+corner,h],[-w,h-corner],[-w,-h+corner]];
     for (const side of sides) {
       const cx = side*.056;
@@ -609,9 +651,9 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
 
   function cameraLight(socket,pulse) {
     const red = pulse ? 0xff3428 : 0x712e31;
-    primitive('round',socket,pulse ? [.031,.027,.024] : [.022,.020,.019],red,0,0,0,4);
+    primitive('round',socket,pulse ? lightOn : lightOff,red,0,0,0,4);
     if (pulse) {
-      primitive('round',add(socket,[0,.002,.010]),[.013,.011,.012],0xffa186,0,0,0,4);
+      primitive('round',add(socket,glintOffset),glintSize,0xffa186,0,0,0,4);
     }
   }
 
@@ -619,8 +661,7 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
     const hand = joint(wrist,(1-pose.raise)*1.28,pose.yaw);
     hand.part('bevel',0,.029,0,.089,.073,.053,skin);
     // Finger roots, from the thumb side. Center the middle finger on the palm.
-    const fingers = [[-.028,.059,.020,.046],[0,.060,.023,.053],[.024,.058,.019,.048],[.043,.053,.015,.036]];
-    for (const [index,[offset,base,width,length]] of fingers.entries()) {
+    for (const [index,[offset,base,width,length]] of fingerRoots.entries()) {
       const x = offset*pose.side;
       const extension = index===1 ? pose.straighten : 0;
       const bend = mix(1.30,.06,extension);
@@ -642,7 +683,7 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
   function openPalm(wrist, skin, pose) {
     const hand = joint(wrist,mix(1.16,.13,pose.raise),pose.yaw);
     hand.part('bevel',0,.031,0,.079,.066,.039,skin);
-    for (const [x,height] of [[-.027,.102],[-.009,.117],[.010,.111],[.029,.093]]) {
+    for (const [x,height] of palmFingers) {
       segment('bevel',hand.point(x*pose.side,.054,0),
         hand.point(x*pose.side*1.33,height,.007),.015,.020,skin);
     }
@@ -657,7 +698,7 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
     const aim = scale(delta,1/reach);
     const distance = clamp(reach,.045,upper+lower-.004);
     const along = (upper*upper-lower*lower+distance*distance)/(2*distance);
-    const pole = [side*mix(.65,.46,lowElbow),mix(-.17,-1,lowElbow),-.22];
+    const pole = v3(side*mix(.65,.46,lowElbow),mix(-.17,-1,lowElbow),-.22);
     const offAxis = subtract(pole,scale(aim,dot(pole,aim)));
     const elbow = add(add(shoulder,scale(aim,along)),scale(offAxis,Math.sqrt(upper*upper-along*along)/Math.max(.001,length(offAxis))));
     const wrist = add(shoulder,scale(aim,distance));
@@ -671,7 +712,7 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
     const handBase = lerp(elbow,wrist,.87);
     segment('bevel',elbow,handBase,.097,.093,shortSleeve ? skin : sleeve);
     if (!shortSleeve) segment('bevel',lerp(elbow,wrist,.78),handBase,.102,.099,cuff);
-    primitive('bevel',elbow,[.098,.097,.098],shortSleeve ? skin : sleeve);
+    primitive('bevel',elbow,elbowSize,shortSleeve ? skin : sleeve);
     if (gesture) {
       segment('bevel',handBase,wrist,.064,.051,skin);
       if (gesture.open) openPalm(wrist,skin,gesture);
@@ -686,9 +727,10 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
   const catchTime = noteCatchTime;
 
   function noteHand(x,z,direction,sender) {
-    return [x+(sender ? .393 : .410),sender ? 1.075 : 1.025,z-.68+direction*(sender ? .35 : .37)];
+    return v3(x+(sender ? .393 : .410),sender ? 1.075 : 1.025,z-.68+direction*(sender ? .35 : .37));
   }
 
+  const motionStates = desks.map(() => ({}));
   function animate(index,elapsed,animated) {
     const time = animated ? core.game_action_time(index) : -1;
     const method = time>=0 ? core.game_method(index) : 0;
@@ -712,7 +754,11 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
     const lead = toward<0 ? 1 : .44;
     const write = (1-Math.max(glance,lookDown*.95,twist,read,aiEar*.72)) *
       (.43+.57*smooth((Math.sin(elapsed*1.53+index*2.39)+.8)*1.27));
-    return {method,time,glance,ceiling,cameraEar,lookDown,aiEar,partner,sender,toward,reach,read,twist,lead,write};
+    const m = motionStates[index];
+    m.method = method; m.time = time; m.glance = glance; m.ceiling = ceiling; m.cameraEar = cameraEar;
+    m.lookDown = lookDown; m.aiEar = aiEar; m.partner = partner; m.sender = sender; m.toward = toward;
+    m.reach = reach; m.read = read; m.twist = twist; m.lead = lead; m.write = write;
+    return m;
   }
 
   function student(index, elapsed, motion, reaction, camera, caughtAge) {
@@ -732,8 +778,8 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
     const lookYaw = startled ? Math.atan2(camera.x-x,camera.z-(z-.704)) : reaction?.yaw ?? 0;
     const bodyPitch = mix(.27-glance*.19+lookDown*.52+read*.10-twist*.16,startled ? -.025-recoil*.23 : .07,turn);
     const bodyYaw = mix(twist*lead*.68+lookDown*.32,clamp(lookYaw,-1.30,1.30),turn);
-    const body = joint([x+lookDown*.074*(1-turn),.524+height+Math.sin(phase*2.1)*.004+recoil*.059,
-      z-.704-lookDown*.18*(1-turn)],bodyPitch,bodyYaw);
+    const body = joint(v3(x+lookDown*.074*(1-turn),.524+height+Math.sin(phase*2.1)*.004+recoil*.059,
+      z-.704-lookDown*.18*(1-turn)),bodyPitch,bodyYaw);
     const neck = body.point(0,.467,.012);
     const lookPitch = reaction || startled ? -Math.atan2(camera.y-neck[1]-.12,Math.hypot(camera.x-neck[0],camera.z-neck[2])) : 0;
     const headPitch = mix(.52+Math.sin(phase*3.4)*.052-glance*(ceiling ? 1.33 : .64)+lookDown*.68+read*.27-twist*.57-ear*.18,
@@ -753,34 +799,34 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
 
     let noteWrist;
     for (const side of sides) {
-      const hip = [x+side*.100,.494,z-.673];
-      const knee = [x+side*.126,.433,z-.269];
-      const ankle = [x+side*.144,.126,z-.255+Math.sin(phase*1.54)*.019];
+      const hip = v3(x+side*.100,.494,z-.673);
+      const knee = v3(x+side*.126,.433,z-.269);
+      const ankle = v3(x+side*.144,.126,z-.255+Math.sin(phase*1.54)*.019);
       segment('bevel',hip,knee,.166,.173,trousers);
-      primitive('bevel',knee,[.145,.143,.144],trousers);
+      primitive('bevel',knee,kneeSize,trousers);
       segment('bevel',knee,ankle,.129,.135,trousers);
-      primitive('bevel',[ankle[0],.096,ankle[2]+.045],[.148,.116,.241],0x3d3937,0,side*.13);
-      primitive('bevel',[ankle[0],.042,ankle[2]+.05],[.150,.047,.246],0xaba08d,0,side*.13);
+      primitive('bevel',v3(ankle[0],.096,ankle[2]+.045),shoeSize,0x3d3937,0,side*.13);
+      primitive('bevel',v3(ankle[0],.042,ankle[2]+.05),soleSize,0xaba08d,0,side*.13);
 
       const writes = side<0;
       const strokeX = Math.sin(phase*12.1)*.031*write*(1-turn);
       const strokeZ = Math.sin(phase*4.2+.4)*.057*write*(1-turn);
-      const rest = writes ? [x-.128+strokeX,.863,z-.095+strokeZ] : [x+.068,.836,z-.149];
+      const rest = writes ? v3(x-.128+strokeX,.863,z-.095+strokeZ) : v3(x+.068,.836,z-.149);
       let target = rest;
       if (writes) {
-        target = lerp(target,[x-.16,.865,z-.19],Math.max(glance,twist,lookDown));
+        target = lerp(target,v3(x-.16,.865,z-.19),Math.max(glance,twist,lookDown));
       } else {
         target = lerp(target,head.point(.143,-.007,.028),ear);
-        target = lerp(target,[x+.298,.641,z-.308],lookDown);
+        target = lerp(target,v3(x+.298,.641,z-.308),lookDown);
         if (sender) {
-          target = lerp(target,[x+.231,.941,z-.49],fade(time,release-.64,release-.37,release,release+.35));
+          target = lerp(target,v3(x+.231,.941,z-.49),fade(time,release-.64,release-.37,release,release+.35));
           target = lerp(target,noteHand(x,z,toward,true),reach);
         } else if (toward) {
-          target = lerp(target,[x+.107,.862,z-.082],read);
+          target = lerp(target,v3(x+.107,.862,z-.082),read);
           target = lerp(target,noteHand(x,z,toward,false),reach);
         }
       }
-      const cuff = ['track','baseball','bomber'].includes(outfits[look.outfit][0]) ? trim : shirt;
+      const cuff = cuffTrimCuts.has(outfits[look.outfit][0]) ? trim : shirt;
       const sleeve = outfits[look.outfit][0]==='baseball' ? trim : shirt;
       const gesture = panicHands>0 ? {open:true,side,yaw:lookYaw,raise:panicHands}
         : reaction?.raise>0 && side===reaction.side ? reaction : null;
@@ -795,16 +841,16 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
       const lowElbow = Math.max(writes ? lookDown*.47 : Math.max(ear,lookDown,reach*.7),gesture?.raise ?? 0);
       const wrist = arm(body.point(side*.187,.367,.019),target,side,sleeve,skin,outfits[look.outfit][2],cuff,lowElbow,gesture);
       if (writes && !gesture) {
-        const grip = add(wrist,[.003,.028,-.011]);
-        const penTip = lerp(add(wrist,[.030,-.052,.053]),add(wrist,[.024,-.014,.066]),
+        const grip = add(wrist,gripOffset);
+        const penTip = lerp(add(wrist,penLow),add(wrist,penHigh),
           Math.max(glance,twist,lookDown,read));
         segment('bevel',grip,penTip,.012,.012,0x27393b);
         segment('bevel',lerp(grip,penTip,.84),penTip,.010,.010,0xc7b284);
       } else if (!writes) {
         noteWrist = wrist;
         if (lookDown>0 && wrist[1]<.738 && alarm<.5) {
-          primitive('bevel',add(wrist,[-.019,-.006,.033]),[.079,.014,.127],0x303736,.16,.17);
-          primitive('box',add(wrist,[-.019,.003,.033]),[.066,.008,.108],0x6d9c91,.16,.17);
+          primitive('bevel',add(wrist,phoneOffset),phoneSize,0x303736,.16,.17);
+          primitive('box',add(wrist,screenOffset),screenSize,0x6d9c91,.16,.17);
         }
       }
     }
@@ -812,11 +858,11 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
   }
 
   function paperAt(hand) {
-    return add(hand,[.002,.025,.013]);
+    return add(hand,paperOffset);
   }
 
   function paper(point, pitch, yaw, roll) {
-    primitive('bevel',point,[.122,.017,.086],0xffe7ae,pitch,yaw,roll);
+    primitive('bevel',point,paperSize,0xffe7ae,pitch,yaw,roll);
     const stripe = joint(point,pitch,yaw);
     stripe.part('box',-.01,.009,.002,.067,.003,.007,0xad7e4e,roll);
   }
@@ -825,7 +871,7 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
     const {time,partner} = motion;
     if (time<release-.26 || time>=catchTime+1.28) return;
     const [rx,rz] = desks[partner];
-    const resting = [rx+.16,.791,rz-.09];
+    const resting = v3(rx+.16,.791,rz-.09);
     const destination = hands[partner] ?? (frames[partner] ? toWorld(frames[partner],resting) : resting);
     if (time<release) {
       paper(paperAt(hands[index]),-.10,.24,0);
@@ -841,32 +887,68 @@ function createStudentActors(core, desks, drawPrimitive, frames=[]) {
     }
   }
 
-  function draw(elapsed,animated,camera,effectDelta,catches) {
-    const motions = desks.map((_,index) => {
+  const motions = Array(desks.length).fill(null);
+  const hands = Array(desks.length).fill(null);
+  const localView = {x:0,y:0,z:0};
+  const viewRadius = 1.0;
+
+  // Conservative view-cone test against a sphere around the seated student (raised arms included).
+  function inView(index, view) {
+    const [x,z] = desks[index];
+    const f = frames[index];
+    let px = x, py = .95, pz = z-.55;
+    if (f) {
+      const w = toWorld(f,v3(px,py,pz));
+      px = w[0]; py = w[1]; pz = w[2];
+    }
+    const dx = px-view.x, dy = py-view.y, dz = pz-view.z;
+    const distance = Math.sqrt(dx*dx+dy*dy+dz*dz);
+    if (distance<viewRadius*1.6) return true;
+    const along = (dx*view.fx+dy*view.fy+dz*view.fz)/distance;
+    return Math.acos(clamp(along,-1,1)) < view.halfAngle+Math.asin(viewRadius/distance);
+  }
+
+  // view: camera position, unit forward (fx, fy, fz) and the half-angle of the screen diagonal.
+  function draw(elapsed,animated,camera,effectDelta,catches,view) {
+    vectorsUsed = 0;
+    jointsUsed = 0;
+    let drawn = 0;
+    for (let index=0;index<desks.length;index++) {
       const age = catches.get(index);
-      if (core.game_is_caught(index) && (age===undefined || age>=caughtSurpriseDuration)) return null;
-      return animate(index,elapsed,animated);
-    });
-    const hands = motions.map((motion,index) => {
-      if (!motion) return null;
+      const gone = core.game_is_caught(index) && (age===undefined || age>=caughtSurpriseDuration);
+      motions[index] = gone ? null : animate(index,elapsed,animated);
+    }
+    for (let index=0;index<desks.length;index++) {
+      const motion = motions[index];
+      hands[index] = null;
+      if (!motion) continue;
       frame = frames[index] ?? null;
-      let view = camera;
+      let local = camera;
       if (frame) {
-        const [x,y,z] = toLocal(frame,[camera.x,camera.y,camera.z]);
-        view = {...camera,x,y,z};
+        const p = toLocal(frame,v3(camera.x,camera.y,camera.z));
+        localView.x = p[0]; localView.y = p[1]; localView.z = p[2];
+        local = localView;
       }
-      const hand = student(index,elapsed,motion,reactionAt(index,effectDelta,view),view,catches.get(index));
-      const world = hand && frame ? toWorld(frame,hand) : hand;
+      // Reactions keep aging off-screen; note partners mid-exchange and catches always draw.
+      const reaction = reactionAt(index,effectDelta,local);
+      const forced = catches.has(index) || (motion.partner>=0 && motion.time>=0);
+      if (forced || !view || inView(index,view)) {
+        const hand = student(index,elapsed,motion,reaction,local,catches.get(index));
+        hands[index] = hand && frame ? toWorld(frame,hand) : hand;
+        drawn++;
+      }
       frame = null;
-      return world;
-    });
-    for (const [index,motion] of motions.entries()) {
+    }
+    for (let index=0;index<desks.length;index++) {
+      const motion = motions[index];
       if (!motion || motion.partner<0 || catches.has(index)) continue;
-      if (motion.sender) exchange(index,motion,hands);
-      else if (!hands[motion.partner] && motion.time>=catchTime && motion.time<catchTime+1.28) {
+      if (motion.sender) {
+        if (hands[index]) exchange(index,motion,hands);
+      } else if (hands[index] && !hands[motion.partner] && motion.time>=catchTime && motion.time<catchTime+1.28) {
         paper(paperAt(hands[index]),-.10,-.18,0);
       }
     }
+    return drawn;
   }
 
   return {draw,reactToWrongAccusation,resetReactions};
@@ -1051,11 +1133,11 @@ function createClassroom(canvas, core, onBurst) {
   }
 
   const stride = 13;
-  function makeMesh(vertices) {
+  // One instance buffer bound to a shape's geometry through its own vertex array.
+  function makeInstances(geometry) {
     const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, geometry);
     for (let i=0;i<2;i++) {
       gl.enableVertexAttribArray(i);
       gl.vertexAttribPointer(i,3,gl.FLOAT,false,24,i*12);
@@ -1067,12 +1149,44 @@ function createClassroom(canvas, core, onBurst) {
       gl.vertexAttribPointer(i,size,gl.FLOAT,false,stride*4,offset*4);
       gl.vertexAttribDivisor(i,1);
     }
-    return {vao,buffer,vertices:vertices.length/6,data:new Float32Array(1024*stride),cursor:0};
+    gl.bindVertexArray(null);
+    return {vao,buffer,capacity:0,count:0};
+  }
+
+  // Each shape keeps the room in a fixed buffer uploaded once per stage, and per-frame shapes in a
+  // dynamic buffer that is allocated once and then only overwritten.
+  function makeMesh(vertices) {
+    const geometry = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, geometry);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+    return {vertices:vertices.length/6,data:new Float32Array(1024*stride),cursor:0,
+      fixed:makeInstances(geometry),dynamic:makeInstances(geometry)};
+  }
+
+  function uploadFixed(mesh) {
+    gl.bindBuffer(gl.ARRAY_BUFFER,mesh.fixed.buffer);
+    gl.bufferData(gl.ARRAY_BUFFER,mesh.data.subarray(0,Math.max(stride,mesh.cursor)),gl.STATIC_DRAW);
+    mesh.fixed.count = mesh.cursor/stride;
+    mesh.cursor = 0;
+  }
+
+  function uploadDynamic(mesh) {
+    const instances = mesh.dynamic;
+    gl.bindBuffer(gl.ARRAY_BUFFER,instances.buffer);
+    if (instances.capacity<mesh.data.byteLength) {
+      gl.bufferData(gl.ARRAY_BUFFER,mesh.data.byteLength,gl.DYNAMIC_DRAW);
+      instances.capacity = mesh.data.byteLength;
+    }
+    gl.bufferSubData(gl.ARRAY_BUFFER,0,mesh.data,0,mesh.cursor);
+    instances.count = mesh.cursor/stride;
   }
   const meshes = {
     box:makeMesh(boxVertices), bevel:makeMesh(bevelVertices()), round:makeMesh(roundVertices()),
     spike:makeMesh(spikeVertices()),
   };
+  const meshList = Object.values(meshes);
+  const viewCone = {x:0,y:0,z:0,fx:0,fy:0,fz:-1,halfAngle:1};
+  const stats = {students:0,totalStudents:0,instances:0};
   gl.enable(gl.DEPTH_TEST);
   gl.clearColor(.30, .34, .32, 1);
   const projectionLocation = gl.getUniformLocation(program, 'viewProjection');
@@ -1081,27 +1195,32 @@ function createClassroom(canvas, core, onBurst) {
 
   const palette = new Map();
 
-  function primitive(shape, center, size, hex, pitch=0, yaw=0, roll=0, material=0) {
-    const mesh = meshes[shape];
-    if (!palette.has(hex)) palette.set(hex, [hex >> 16, (hex >> 8) & 255, hex & 255].map(n => n / 255));
+  // Writes one instance straight into the shape's buffer without allocating.
+  function instance(mesh, x, y, z, w, h, d, hex, pitch, yaw, roll, material) {
+    let color = palette.get(hex);
+    if (!color) {
+      color = [(hex >> 16)/255, ((hex >> 8) & 255)/255, (hex & 255)/255];
+      palette.set(hex,color);
+    }
     if (mesh.cursor+stride>mesh.data.length) {
       const larger = new Float32Array(mesh.data.length*2);
       larger.set(mesh.data);
       mesh.data = larger;
     }
-    const start = mesh.cursor;
-    mesh.data.set(center,start);
-    mesh.data.set(size,start+3);
-    mesh.data[start+6] = pitch;
-    mesh.data[start+7] = yaw;
-    mesh.data[start+8] = roll;
-    mesh.data[start+9] = material;
-    mesh.data.set(palette.get(hex),start+10);
-    mesh.cursor += stride;
+    const data = mesh.data, i = mesh.cursor;
+    data[i] = x; data[i+1] = y; data[i+2] = z;
+    data[i+3] = w; data[i+4] = h; data[i+5] = d;
+    data[i+6] = pitch; data[i+7] = yaw; data[i+8] = roll; data[i+9] = material;
+    data[i+10] = color[0]; data[i+11] = color[1]; data[i+12] = color[2];
+    mesh.cursor = i+stride;
+  }
+
+  function primitive(shape, center, size, hex, pitch=0, yaw=0, roll=0, material=0) {
+    instance(meshes[shape],center[0],center[1],center[2],size[0],size[1],size[2],hex,pitch,yaw,roll,material);
   }
 
   function box(x,y,z,w,h,d,hex,material=0,pitch=0,yaw=0) {
-    primitive('box',[x,y,z],[w,h,d],hex,pitch,yaw,0,material);
+    instance(meshes.box,x,y,z,w,h,d,hex,pitch,yaw,0,material);
   }
 
   const wood = 0xbb9168;
@@ -1109,7 +1228,7 @@ function createClassroom(canvas, core, onBurst) {
   const wall = 0xd1cbb6;
   const trim = 0x67796f;
   let clockY = 2.59, clockWall = -6.23;
-  let desks = [], seatFrames = [], students, staticLength = 0, floorSeats = [0,1,0,1];
+  let desks = [], seatFrames = [], students, floorSeats = [0,1,0,1];
 
   // Places a box in a seat's frame: local +z faces the board, y is measured from the seat's floor.
   function seatBox(seat, lx, ly, lz, w, h, d, hex, material=0, pitch=0, yaw=0) {
@@ -1130,7 +1249,7 @@ function createClassroom(canvas, core, onBurst) {
 
   // Rebuilds the room for the current stage.
   function buildRoom() {
-    meshes.box.cursor = 0;
+    for (const mesh of Object.values(meshes)) mesh.cursor = 0;
     desks = Array.from({length: core.game_seat_count()}, (_, i) => [core.game_seat_x(i), core.game_seat_z(i)]);
     seatFrames = desks.map(([x,z],i) => {
       const yaw = core.game_seat_yaw(i);
@@ -1138,7 +1257,7 @@ function createClassroom(canvas, core, onBurst) {
     });
     if (core.game_layout()===1) buildHall();
     else buildClassroom();
-    staticLength = meshes.box.cursor;
+    for (const mesh of Object.values(meshes)) uploadFixed(mesh);
     students = createStudentActors(core,desks,primitive,seatFrames.map(f => f.yaw || f.lift ? f : null));
   }
 
@@ -1434,26 +1553,38 @@ function createClassroom(canvas, core, onBurst) {
     const dot = v => v[0]*x + v[1]*y + v[2]*z;
     const view = [right[0],up[0],-forward[0],0,right[1],up[1],-forward[1],0,
       right[2],up[2],-forward[2],0,-dot(right),-dot(up),dot(forward),1];
-    const f = 1/Math.tan((zoom ? .48 : 1.00)/2);
-    const perspective = [f/(width/height),0,0,0, 0,f,0,0, 0,0,-1.003,-1, 0,0,-.109,0];
+    const fov = zoom ? .48 : 1.00;
+    const f = 1/Math.tan(fov/2), aspect = width/height;
+    const perspective = [f/aspect,0,0,0, 0,f,0,0, 0,0,-1.003,-1, 0,0,-.109,0];
+    viewCone.x = x; viewCone.y = y; viewCone.z = z;
+    viewCone.fx = forward[0]; viewCone.fy = forward[1]; viewCone.fz = forward[2];
+    viewCone.halfAngle = Math.atan(Math.tan(fov/2)*Math.hypot(1,aspect));
     gl.useProgram(program);
     gl.uniformMatrix4fv(projectionLocation,false,multiply(perspective,view));
     gl.uniform3f(eyeLocation,x,y,z);
     gl.uniform4fv(floorSeatsLocation,floorSeats);
-    meshes.box.cursor = staticLength;
-    meshes.bevel.cursor = meshes.round.cursor = meshes.spike.cursor = 0;
+    for (const mesh of meshList) mesh.cursor = 0;
     drawClock(remaining);
     advanceCatches(effectDelta,camera);
-    students.draw(elapsed,animated,camera,effectDelta,catches);
+    stats.students = students.draw(elapsed,animated,camera,effectDelta,catches,viewCone);
+    stats.totalStudents = desks.length;
     drawBursts();
     if (aimedSeat>=0) markDesk(aimedSeat);
-    for (const mesh of Object.values(meshes)) {
-      if (!mesh.cursor) continue;
-      gl.bindVertexArray(mesh.vao);
-      gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buffer);
-      gl.bufferData(gl.ARRAY_BUFFER,mesh.data.subarray(0,mesh.cursor),gl.DYNAMIC_DRAW);
-      gl.drawArraysInstanced(gl.TRIANGLES,0,mesh.vertices,mesh.cursor/stride);
+    stats.instances = 0;
+    for (const mesh of meshList) {
+      if (mesh.fixed.count) {
+        gl.bindVertexArray(mesh.fixed.vao);
+        gl.drawArraysInstanced(gl.TRIANGLES,0,mesh.vertices,mesh.fixed.count);
+      }
+      if (mesh.cursor) {
+        uploadDynamic(mesh);
+        gl.bindVertexArray(mesh.dynamic.vao);
+        gl.drawArraysInstanced(gl.TRIANGLES,0,mesh.vertices,mesh.dynamic.count);
+      }
+      stats.instances += mesh.fixed.count+mesh.cursor/stride;
     }
+    gl.bindVertexArray(null);
+    return stats;
   }
 
   function resetEffects() {
@@ -1710,7 +1841,28 @@ async function boot() {
   let phase = 'intro';
   let zoom = false, yaw = 0, pitch = -.17, aimedSeat = -1;
   let frameTime = 0, toastUntil = 0, endingLeft = 0;
-  let stamina = 1, winded = false, staminaRest = 0;
+  let stamina = 1, winded = false, staminaRest = 0, shownStamina = -1, shownWinded = false;
+  // ?debug in the address shows frame rate, the longest frame, drawn students and instance count.
+  const debug = new URLSearchParams(location.search).has('debug')
+    ? {panel:document.createElement('div'),frames:0,worst:0,since:0} : null;
+  if (debug) {
+    debug.panel.className = 'debug-panel';
+    debug.panel.setAttribute('aria-hidden','true');
+    $('game').append(debug.panel);
+  }
+
+  function updateDebug(now, dt, stats) {
+    debug.frames++;
+    debug.worst = Math.max(debug.worst,dt*1000);
+    if (!debug.since) debug.since = now;
+    if (now-debug.since<500) return;
+    const fps = debug.frames*1000/(now-debug.since);
+    debug.panel.textContent = `FPS ${fps.toFixed(0)} · 최장 프레임 ${debug.worst.toFixed(1)}ms · `+
+      `학생 ${stats.students}/${stats.totalStudents} · 도형 ${Math.round(stats.instances).toLocaleString()}`;
+    debug.frames = 0;
+    debug.worst = 0;
+    debug.since = now;
+  }
   let pendingPointerLock = false, wasLocked = false;
 
   ui['help-rules'].innerHTML = ui['intro-rules'].innerHTML;
@@ -1746,7 +1898,11 @@ async function boot() {
   }
 
   function updateStamina() {
-    ui['stamina-fill'].style.width = (stamina*100).toFixed(1)+'%';
+    const percent = Math.round(stamina*200)/2;
+    if (percent===shownStamina && winded===shownWinded) return;
+    shownStamina = percent;
+    shownWinded = winded;
+    ui['stamina-fill'].style.width = percent+'%';
     ui.stamina.classList.toggle('winded',winded);
     ui.stamina.setAttribute('aria-valuenow',String(Math.round(stamina*100)));
   }
@@ -1979,7 +2135,8 @@ async function boot() {
     const remaining = core.game_remaining(), elapsed = duration-remaining;
     if (phase==='running') sound.update(elapsed,camera);
     const effectsPaused = phase==='paused' || phase==='help';
-    classroom.draw(camera,elapsed,remaining,phase!=='intro'&&zoom,phase!=='intro',effectsPaused ? 0 : dt,aimedSeat);
+    const stats = classroom.draw(camera,elapsed,remaining,phase!=='intro'&&zoom,phase!=='intro',effectsPaused ? 0 : dt,aimedSeat);
+    if (debug) updateDebug(now,dt,stats);
     if (phase==='ending' && endingLeft<=0 && !classroom.hasCatchEffects()) finish(core.game_status());
     requestAnimationFrame(frame);
   }
